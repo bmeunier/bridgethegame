@@ -10,7 +10,6 @@
     "dev": "tsx src/inngest/index.ts",
     "inngest-dev": "npx inngest-cli dev",
     "trigger": "tsx scripts/send_event.ts",
-    "oauth": "tsx scripts/get_podbean_tokens.ts",
     "build": "tsc",
     "typecheck": "tsc --noEmit",
     "test": "echo \"Error: no test specified\" && exit 1"
