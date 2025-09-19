@@ -1,4 +1,4 @@
-# Plan 2: Manual Backfill – bridgethegame
+# Plan 2: Backfill Triggers and Minimal Ingestion Loop for bridgethegame
 
 ## Purpose
 Enable podcast owners (or us, during early builds) to **select and re-ingest any number of past episodes** into the pipeline. This is critical for onboarding entire back catalogs, validating idempotency, and providing a "migration as a service" path.
@@ -73,6 +73,7 @@ All backfill paths converge into a single Inngest event:
 
 ## Processing Strategy
 - **Batching**: break into chunks (10–20 episodes per run) to respect Podbean/Deepgram limits.  
+- **Rate limiting**: introduce small delays (e.g. `step.sleep`) or batch throttling to avoid Podbean API rate limits during retries or backfill.
 - **Idempotency**:  
   - Check Weaviate for `episode_id` marker before starting.  
   - Skip if already present unless `force=true`.  
