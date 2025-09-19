@@ -1,0 +1,41 @@
+{
+  "name": "bridgethegame",
+  "version": "1.0.0",
+  "description": "> Building a bridge between **Podbean** and **Weaviate** to turn podcast archives into living, searchable knowledge bases.   > Pilot project: *The Game* podcast by Alex Hormozi by [Benoit Meunier](https://x.com/bmeunier)",
+  "main": "index.js",
+  "directories": {
+    "doc": "docs"
+  },
+  "scripts": {
+    "dev": "tsx src/inngest/index.ts",
+    "inngest-dev": "npx inngest-cli dev",
+    "trigger": "tsx scripts/send_event.ts",
+    "oauth": "tsx scripts/get_podbean_tokens.ts",
+    "build": "tsc",
+    "typecheck": "tsc --noEmit",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/bmeunier/bridgethegame.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/bmeunier/bridgethegame/issues"
+  },
+  "homepage": "https://github.com/bmeunier/bridgethegame#readme",
+  "dependencies": {
+    "axios": "^1.12.2",
+    "dotenv": "^17.2.2",
+    "express": "^5.1.0",
+    "inngest": "^3.40.3"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.3",
+    "@types/node": "^24.5.2",
+    "tsx": "^4.20.5",
+    "typescript": "^5.9.2"
+  }
+}
