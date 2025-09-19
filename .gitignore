@@ -8,10 +8,13 @@ lerna-debug.log*
 
 # Environment variables
 .env
+.env.*
+!.env.example
 .env.local
 .env.development.local
 .env.test.local
 .env.production.local
+*.env
 
 # IDE
 .vscode/
@@ -61,3 +64,37 @@ temp/
 
 # Weaviate local data
 weaviate-data/
+
+# Secrets and credentials
+*.pem
+*.key
+*.cert
+*.crt
+*.p12
+*.pfx
+secrets/
+credentials/
+private/
+
+# API keys and tokens
+api_keys/
+tokens/
+.podbean_token
+.deepgram_token
+.pyannote_token
+
+# OAuth tokens
+oauth_token.json
+refresh_token.json
+access_token.json
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+
+# Backup files
+*.bak
+*.backup
+*.old
+*~
