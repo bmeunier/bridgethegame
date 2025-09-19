@@ -3,9 +3,9 @@
 ## Context & Origin
 This project is the next evolution of a series of experiments around *The Game* podcast.  
 Earlier prototypes included:
-- **talkthegame.felo5.com** — conversational interaction with transcripts.  
+- **[talkthegame.felo5.com](https://talktothegame.bearblog.dev/blog/)** — conversational interaction with transcripts.  
 - **askthegame.felo5.com** — early Q&A system powered by embeddings.  
-- **readthegame.felo5.com** — structured reading experience of episodes.  
+- **[https://github.com/bmeunier/readthegame](https://github.com/bmeunier/readthegame)** — structured reading experience of episodes.  
 
 While these showed the potential of turning podcast audio into structured data, they were heavy and complex. The pivot is toward something leaner and more directly useful: a bridge between Podbean (where the podcast is hosted) and Weaviate (where enriched episodes live as a searchable knowledge base).  
 
