@@ -1,8 +1,4 @@
 import { Inngest } from "inngest";
-import * as dotenv from "dotenv";
-
-// Load environment variables
-dotenv.config();
 
 // Define our event types
 type PodcastIngestEvent = {

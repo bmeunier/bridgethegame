@@ -8,9 +8,9 @@ bridgethegame is an experiment in making podcasts truly usable.
 Instead of flat transcripts or auto-generated chapters, the goal is to **enrich episodes with high-quality AI processing** and **index them into Weaviate** for semantic + hybrid search.
 
 This project grew out of earlier prototypes:
-- **[talkthegame.felo5.com](https://talkthegame.felo5.com)** – conversational interaction with transcripts  
+- **[talkthegame.felo5.com](https://talktothegame.bearblog.dev/blog/)** – conversational interaction with transcripts  
 - **[askthegame.felo5.com](https://askthegame.felo5.com)** – early Q&A system powered by embeddings  
-- **[readthegame.felo5.com](https://readthegame.felo5.com)** – structured reading experience of episodes  
+- **[readthegame.felo5.com](https://github.com/bmeunier/readthegame)** – structured reading experience of episodes  
 
 Each one taught me something. Now I’m pivoting to a leaner build: **bridge → enrich → search**.
 
@@ -30,14 +30,9 @@ I’m documenting this project as a working blog in the repo wiki:
 ## Documentation
 - [Project PRD (v1)](./docs/PRD/bridgethegame_v1.md)  
 - [Plan 1 – Replication Pilot](./docs/PRD/bridgethegame_plan1Replication.md)  
+- [Plan 2: Backfill Triggers and Minimal Ingestion Loop for bridgethegame](docs/PRD/bridgethegame_plan2Backfill.md)
 
 ## ⚠️ Disclaimer
 This is an **educational and research project**.  
 Replicated episodes of *The Game* are private and not redistributed publicly.  
 All work is exploratory, with no affiliation to Alex Hormozi or Acquisition.com.
-
-## 🚧 Status
-- ✅ PRD written  
-- ✅ Plan 1 (Replication) drafted  
-- 🟡 Next: Run first episode through the pipeline (Podbean → Deepgram → Pyannote → Weaviate)  
-- 🔜 Automation via Inngest once pipeline validated  

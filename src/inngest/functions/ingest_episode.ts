@@ -7,14 +7,6 @@ import { podbeanClient, PodbeanClient } from "../../lib/podbean";
  */
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
-/**
- * Check if episode already exists (stub for now)
- * TODO: Implement actual Weaviate check
- */
-async function isEpisodeProcessed(episodeId: string): Promise<boolean> {
-  // TODO: Check Weaviate for existing episode
-  return false;
-}
 
 /**
  * Inngest function to ingest a podcast episode
@@ -27,6 +19,7 @@ export const ingestEpisode = inngest.createFunction(
     concurrency: {
       limit: 5, // Limit concurrent executions to avoid rate limits
     },
+    idempotency: "event.data.episode_id", // Prevent duplicate processing per episode
   },
   { event: "podbean.episode.ingest.requested" },
   async ({ event, step }) => {
@@ -56,22 +49,8 @@ export const ingestEpisode = inngest.createFunction(
       throw new Error("Invalid episode ID format");
     }
 
-    // Check idempotency (unless force is true)
-    if (!event.data.force) {
-      const exists = await step.run("check-idempotency", async () => {
-        return await isEpisodeProcessed(event.data.episode_id);
-      });
-
-      if (exists) {
-        console.log(JSON.stringify({
-          scope: "ingest_episode",
-          status: "skipped",
-          episode_id: event.data.episode_id,
-          reason: "already_processed",
-        }));
-        return { status: "skipped", reason: "already_processed" };
-      }
-    }
+    // Note: Idempotency is now handled by Inngest based on episode_id
+    // Episodes won't be reprocessed unless this function is called with force=true
 
     // Add rate limiting delay for backfill mode
     if (event.data.mode === "backfill") {

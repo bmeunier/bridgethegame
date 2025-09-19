@@ -1,7 +1,4 @@
 import axios, { AxiosInstance, AxiosError } from "axios";
-import * as dotenv from "dotenv";
-
-dotenv.config();
 
 // Podbean API types
 interface PodcastEpisode {
@@ -27,6 +24,7 @@ export class PodbeanClient {
   private accessToken: string;
   private refreshToken: string;
   private tokenExpiresAt: number = 0;
+  private authFailureCount: number = 0;
 
   constructor() {
     this.client = axios.create({
@@ -160,20 +158,40 @@ export class PodbeanClient {
       const response = await this.client.get<{ episode: PodcastEpisode }>(
         `/v1/episodes/${episodeId}`
       );
+      // Reset auth failure counter on successful request
+      this.authFailureCount = 0;
       return response.data.episode;
     } catch (error) {
       if (axios.isAxiosError(error)) {
         const axiosError = error as AxiosError;
 
         if (axiosError.response?.status === 401) {
-          // Try one token refresh and retry
-          console.log("Got 401, attempting token refresh and retry");
-          await this.refreshAccessToken();
+          this.authFailureCount++;
 
-          // Retry the request once
+          // Max 3 attempts to prevent hot-looping
+          if (this.authFailureCount > 3) {
+            throw new Error("Authentication failed after 3 attempts - check your credentials");
+          }
+
+          // Exponential backoff: 1s, 2s, 4s
+          const backoffMs = Math.pow(2, this.authFailureCount - 1) * 1000;
+          console.log(`Got 401 (attempt ${this.authFailureCount}), waiting ${backoffMs}ms before retry`);
+
+          await new Promise(resolve => setTimeout(resolve, backoffMs));
+
+          try {
+            await this.refreshAccessToken();
+          } catch (refreshError) {
+            console.error("Token refresh failed:", refreshError);
+            throw new Error("Authentication failed - unable to refresh token");
+          }
+
+          // Retry the request
           const response = await this.client.get<{ episode: PodcastEpisode }>(
             `/v1/episodes/${episodeId}`
           );
+          // Reset auth failure counter on successful retry
+          this.authFailureCount = 0;
           return response.data.episode;
         } else if (axiosError.response?.status === 404) {
           throw new Error(`Episode not found: ${episodeId}`);
