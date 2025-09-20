@@ -9,10 +9,12 @@ dotenv.config();
 
 const app = express();
 
-// Add body parsing middleware with increased limits for large payloads
-app.use(express.json({ limit: '50mb' }));
-app.use(express.raw({ type: "application/json", limit: '50mb' }));
-app.use(express.urlencoded({ extended: true, limit: '50mb' }));
+// Add body parsing middleware with configurable limits for very long podcast episodes
+// 3+ hour episodes can generate 50mb+ transcript JSON files
+const BODY_LIMIT = process.env.EXPRESS_BODY_LIMIT || '100mb';
+app.use(express.json({ limit: BODY_LIMIT }));
+app.use(express.raw({ type: "application/json", limit: BODY_LIMIT }));
+app.use(express.urlencoded({ extended: true, limit: BODY_LIMIT }));
 
 // Serve Inngest functions
 app.use(
