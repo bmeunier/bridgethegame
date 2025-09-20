@@ -96,8 +96,17 @@ export const ingestEpisode = inngest.createFunction(
       }
     });
 
+    // Trigger Deepgram transcription
+    await step.sendEvent("trigger-transcription", {
+      name: "episode.transcribe.requested",
+      data: {
+        episode_id: event.data.episode_id,
+        audio_url: episode.media_url,
+        force: event.data.force,
+      },
+    });
+
     // TODO: Future steps will be added here
-    // - Deepgram transcription
     // - Pyannote diarization
     // - Data merging
     // - Weaviate indexing

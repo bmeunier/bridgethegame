@@ -2,6 +2,7 @@ import { serve } from "inngest/express";
 import express from "express";
 import { inngest } from "./client";
 import { ingestEpisode } from "./functions/ingest_episode";
+import { transcribeEpisode } from "./functions/transcribe_episode";
 import * as dotenv from "dotenv";
 
 dotenv.config();
@@ -17,7 +18,7 @@ app.use(
   "/api/inngest",
   serve({
     client: inngest,
-    functions: [ingestEpisode],
+    functions: [ingestEpisode, transcribeEpisode],
   })
 );
 

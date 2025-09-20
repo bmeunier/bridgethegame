@@ -28,9 +28,17 @@ I’m documenting this project as a working blog in the repo wiki:
 - **Indexing**: Push to [Weaviate Cloud](https://weaviate.io/) for embeddings + hybrid search.  
 
 ## Documentation
-- [Project PRD (v1)](./docs/PRD/bridgethegame_v1.md)  
-- [Plan 1 – Replication Pilot](./docs/PRD/bridgethegame_plan1Replication.md)  
+- [Project PRD (v1)](./docs/PRD/bridgethegame_v1.md)
+- [Plan 1 – Replication Pilot](./docs/PRD/bridgethegame_plan1Replication.md)
 - [Plan 2: Backfill Triggers and Minimal Ingestion Loop for bridgethegame](docs/PRD/bridgethegame_plan2Backfill.md)
+- [Plan 3: Deepgram Transcription Service](docs/PRD/bridgethegame_plan3Transcription.md)
+
+## Implementation Status
+✅ **Plan 3 Complete**: Deepgram transcription with speaker diarization sidecar field
+- Canonical transcript structure preserved for pyannote integration
+- Deepgram speaker segments stored in optional `deepgram_speakers` field for debugging/analysis
+- Tested with real podcast episodes (327x realtime processing speed!)
+- Ready for Plan 4: Pyannote speaker diarization
 
 ## ⚠️ Disclaimer
 This is an **educational and research project**.  

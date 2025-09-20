@@ -7,7 +7,9 @@ interface PodcastEpisode {
   content: string;
   publish_time: number;
   duration: number;
-  audio_url: string;
+  media_url: string;
+  player_url?: string;
+  permalink_url?: string;
   [key: string]: any; // Keep other fields for future use
 }
 
