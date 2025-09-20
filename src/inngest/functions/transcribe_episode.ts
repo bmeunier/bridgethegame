@@ -65,8 +65,19 @@ export const transcribeEpisode = inngest.createFunction(
           s3_key: transcriptKey,
         }));
 
-        // Load and return existing transcript
+        // Load cached transcript to emit completion event and return cached metadata
         const existingTranscript = await storage.loadJson<TranscriptEnvelope>(transcriptKey);
+
+        await step.sendEvent("transcript-complete", {
+          name: "episode.transcript.completed",
+          data: {
+            episode_id,
+            transcript_key: transcriptKey,
+            word_count: existingTranscript.words.length,
+            duration: existingTranscript.metadata?.duration || 0,
+          },
+        });
+
         return {
           status: "skipped",
           episode_id,
@@ -208,7 +219,38 @@ export const transcribeEpisode = inngest.createFunction(
 
         // Save raw response
         const rawKey = StorageClient.getTranscriptKey(episode_id, 'deepgram_raw');
-        await storage.saveJson(rawKey, deepgramResponse);
+
+        try {
+          await storage.saveJson(rawKey, deepgramResponse);
+        } catch (rawError) {
+          console.error(JSON.stringify({
+            scope: "transcribe_episode",
+            status: "error",
+            error_type: "storage_raw",
+            episode_id,
+            message: rawError instanceof Error ? rawError.message : "Unknown error",
+          }));
+
+          try {
+            await storage.deleteObject(transcriptKey);
+            console.log(JSON.stringify({
+              scope: "transcribe_episode",
+              action: "rollback_normalized",
+              episode_id,
+              transcript_key: transcriptKey,
+            }));
+          } catch (cleanupError) {
+            console.error(JSON.stringify({
+              scope: "transcribe_episode",
+              status: "error",
+              error_type: "storage_cleanup",
+              episode_id,
+              message: cleanupError instanceof Error ? cleanupError.message : "Unknown error",
+            }));
+          }
+
+          throw rawError;
+        }
 
         console.log(JSON.stringify({
           scope: "transcribe_episode",

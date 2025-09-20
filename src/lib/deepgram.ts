@@ -160,6 +160,10 @@ export class DeepgramClient {
     const words: NormalizedWord[] = [];
     const utterances: NormalizedUtterance[] = [];
     const paragraphs: NormalizedParagraph[] = [];
+    const wordIndexByTime = new Map<string, number>();
+
+    const buildTimeKey = (start: number, end: number) => `${Math.round(start * 1000)}:${Math.round(end * 1000)}`;
+    const TIME_TOLERANCE = 0.02; // 20ms tolerance for floating point drift
 
     // Extract from the first channel (mono audio)
     const channel = deepgramResponse.results.channels[0];
@@ -171,7 +175,7 @@ export class DeepgramClient {
 
     // Process words
     if (alternative.words) {
-      alternative.words.forEach((word) => {
+      alternative.words.forEach((word, index) => {
         words.push({
           word: word.punctuated_word || word.word,
           start: word.start,
@@ -179,23 +183,44 @@ export class DeepgramClient {
           confidence: word.confidence,
           speaker: null, // Will be filled by pyannote
         });
+        wordIndexByTime.set(buildTimeKey(word.start, word.end), index);
       });
     }
 
     // Process utterances
     if (alternative.utterances) {
+      let searchCursor = 0;
+
       alternative.utterances.forEach((utterance) => {
         const wordIndices: number[] = [];
 
         // Find word indices for this utterance
         utterance.words.forEach(uWord => {
-          // Match words by timestamp
-          const wordIndex = words.findIndex(w =>
-            Math.abs(w.start - uWord.start) < 0.01 &&
-            Math.abs(w.end - uWord.end) < 0.01
-          );
-          if (wordIndex >= 0) {
+          const exactKey = buildTimeKey(uWord.start, uWord.end);
+          let wordIndex = wordIndexByTime.get(exactKey);
+
+          if (wordIndex === undefined) {
+            for (let idx = searchCursor; idx < words.length; idx++) {
+              const candidate = words[idx];
+              if (
+                Math.abs(candidate.start - uWord.start) <= TIME_TOLERANCE &&
+                Math.abs(candidate.end - uWord.end) <= TIME_TOLERANCE
+              ) {
+                wordIndex = idx;
+                break;
+              }
+
+              if (candidate.start > uWord.start + TIME_TOLERANCE) {
+                break;
+              }
+            }
+          }
+
+          if (typeof wordIndex === 'number') {
             wordIndices.push(wordIndex);
+            if (wordIndex + 1 > searchCursor) {
+              searchCursor = wordIndex + 1;
+            }
           }
         });
 

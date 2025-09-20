@@ -30,17 +30,31 @@ async function testInngestPipeline() {
     console.log('1️⃣ Verifying servers...');
 
     try {
-      await axios.get(`${APP_URL}/health`, { timeout: 2000 }).catch(() => {});
-      console.log('   ✅ Application server running on port 3000');
-    } catch {
+      const healthResponse = await axios.get(`${APP_URL}/api/inngest`, { timeout: 2000 });
+      if (healthResponse.status >= 200 && healthResponse.status < 300) {
+        console.log('   ✅ Application server running on port 3000');
+      } else {
+        throw new Error(`Unexpected status: ${healthResponse.status}`);
+      }
+    } catch (error) {
       console.log('   ⚠️  Application server may not be running');
+      if (error instanceof Error) {
+        console.log(`      Reason: ${error.message}`);
+      }
     }
 
     try {
-      await axios.get(`${INNGEST_URL}`, { timeout: 2000 }).catch(() => {});
-      console.log('   ✅ Inngest dev server running on port 8288');
-    } catch {
+      const inngestResponse = await axios.get(`${INNGEST_URL}`, { timeout: 2000 });
+      if (inngestResponse.status >= 200 && inngestResponse.status < 300) {
+        console.log('   ✅ Inngest dev server running on port 8288');
+      } else {
+        throw new Error(`Unexpected status: ${inngestResponse.status}`);
+      }
+    } catch (error) {
       console.log('   ⚠️  Inngest dev server may not be running');
+      if (error instanceof Error) {
+        console.log(`      Reason: ${error.message}`);
+      }
     }
 
     // Step 2: Trigger the pipeline
