@@ -73,7 +73,7 @@ export const transcribeEpisode = inngest.createFunction(
           data: {
             episode_id,
             transcript_key: transcriptKey,
-            word_count: existingTranscript.words.length,
+            word_count: existingTranscript.words?.length || 0,
             duration: existingTranscript.metadata?.duration || 0,
           },
         });
@@ -83,7 +83,7 @@ export const transcribeEpisode = inngest.createFunction(
           episode_id,
           message: "Transcript already exists",
           transcript_key: transcriptKey,
-          duration: existingTranscript.metadata?.duration,
+          duration: existingTranscript.metadata?.duration || 0,
         };
       }
     }
@@ -175,8 +175,10 @@ export const transcribeEpisode = inngest.createFunction(
       }
     });
 
-    // Step 3: Parse and normalize transcript
-    const transcriptEnvelope = await step.run("parse-transcript", async () => {
+    // Step 3: Parse and normalize transcript (return only summary to avoid output_too_large)
+    let transcriptEnvelope: TranscriptEnvelope;
+
+    const transcriptSummary = await step.run("parse-transcript", async () => {
       try {
         const envelope = deepgramClient.parseResponse(episode_id, deepgramResponse);
 
@@ -198,7 +200,16 @@ export const transcribeEpisode = inngest.createFunction(
           paragraph_count: envelope.paragraphs.length,
         }));
 
-        return envelope;
+        // Store full envelope for later use in S3 save step
+        transcriptEnvelope = envelope;
+
+        // Return only summary data to avoid Inngest output_too_large error
+        return {
+          word_count: envelope.words.length,
+          utterance_count: envelope.utterances.length,
+          paragraph_count: envelope.paragraphs.length,
+          duration: envelope.metadata?.duration || 0,
+        };
       } catch (error) {
         console.error(JSON.stringify({
           scope: "transcribe_episode",
@@ -277,8 +288,8 @@ export const transcribeEpisode = inngest.createFunction(
       data: {
         episode_id,
         transcript_key: transcriptKey,
-        word_count: transcriptEnvelope.words.length,
-        duration: transcriptEnvelope.metadata?.duration || 0,
+        word_count: transcriptSummary.word_count,
+        duration: transcriptSummary.duration,
       },
     });
 
@@ -290,18 +301,18 @@ export const transcribeEpisode = inngest.createFunction(
       status: "success",
       episode_id,
       processing_time_ms: processingTime,
-      word_count: transcriptEnvelope.words.length,
-      duration: transcriptEnvelope.metadata?.duration || 0,
+      word_count: transcriptSummary.word_count,
+      duration: transcriptSummary.duration,
     }));
 
     return {
       status: "success",
       episode_id,
       transcript_key: transcriptKey,
-      word_count: transcriptEnvelope.words.length,
-      utterance_count: transcriptEnvelope.utterances.length,
-      paragraph_count: transcriptEnvelope.paragraphs.length,
-      duration: transcriptEnvelope.metadata?.duration || 0,
+      word_count: transcriptSummary.word_count,
+      utterance_count: transcriptSummary.utterance_count,
+      paragraph_count: transcriptSummary.paragraph_count,
+      duration: transcriptSummary.duration,
       processing_time_ms: processingTime,
     };
   }
