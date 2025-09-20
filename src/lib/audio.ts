@@ -154,5 +154,22 @@ export class AudioFetcher {
   }
 }
 
-// Export singleton instance
-export const audioFetcher = new AudioFetcher();
+// Export singleton instance (lazy initialization)
+let _audioFetcher: AudioFetcher | null = null;
+
+export function getAudioFetcher(): AudioFetcher {
+  if (!_audioFetcher) {
+    _audioFetcher = new AudioFetcher();
+  }
+  return _audioFetcher;
+}
+
+// Export for backward compatibility
+export const audioFetcher = {
+  fetchAudioFromUrl: (...args: Parameters<AudioFetcher['fetchAudioFromUrl']>) =>
+    getAudioFetcher().fetchAudioFromUrl(...args),
+  getAudioFromCache: (...args: Parameters<AudioFetcher['getAudioFromCache']>) =>
+    getAudioFetcher().getAudioFromCache(...args),
+  isAudioCached: (...args: Parameters<AudioFetcher['isAudioCached']>) =>
+    getAudioFetcher().isAudioCached(...args),
+};

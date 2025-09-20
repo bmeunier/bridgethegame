@@ -116,7 +116,7 @@ export const transcribeEpisode = inngest.createFunction(
           utterances: true,
           paragraphs: true,
           timestamps: true,
-          diarize: false, // Will use pyannote for diarization
+          diarize: true, // Enable for sidecar field (pyannote will override later)
           filler_words: false,
           profanity_filter: false,
           language: "en",

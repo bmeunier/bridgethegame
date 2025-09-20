@@ -8,6 +8,7 @@ import {
   GetObjectCommand,
   HeadObjectCommand,
   ListObjectsV2Command,
+  DeleteObjectCommand,
 } from '@aws-sdk/client-s3';
 import { Readable } from 'stream';
 
@@ -288,6 +289,43 @@ export class StorageClient {
       chunks.push(Buffer.from(chunk));
     }
     return Buffer.concat(chunks).toString('utf-8');
+  }
+
+  /**
+   * Delete object from S3
+   */
+  async deleteObject(key: string): Promise<void> {
+    try {
+      console.log(JSON.stringify({
+        scope: 'storage_client',
+        action: 'delete_start',
+        bucket: this.bucketName,
+        key,
+      }));
+
+      await this.s3.send(
+        new DeleteObjectCommand({
+          Bucket: this.bucketName,
+          Key: key,
+        })
+      );
+
+      console.log(JSON.stringify({
+        scope: 'storage_client',
+        action: 'delete_success',
+        bucket: this.bucketName,
+        key,
+      }));
+    } catch (error) {
+      console.error(JSON.stringify({
+        scope: 'storage_client',
+        action: 'delete_error',
+        bucket: this.bucketName,
+        key,
+        error: error instanceof Error ? error.message : error,
+      }));
+      throw error;
+    }
   }
 
   /**
