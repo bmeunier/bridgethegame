@@ -110,7 +110,8 @@ export interface DeepgramSpeakerSegment {
 export interface TranscriptEnvelope {
   episode_id: string;
   asr_provider: 'deepgram';
-  raw: DeepgramApiResponse;
+  raw?: DeepgramApiResponse; // Present when working with in-memory responses
+  raw_s3_key?: string; // Preferred pointer to the archived Deepgram payload
   words: NormalizedWord[];
   utterances: NormalizedUtterance[];
   paragraphs: NormalizedParagraph[];

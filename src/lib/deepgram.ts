@@ -155,7 +155,8 @@ export class DeepgramClient {
    */
   parseResponse(
     episodeId: string,
-    deepgramResponse: DeepgramApiResponse
+    deepgramResponse: DeepgramApiResponse,
+    rawKey?: string
   ): TranscriptEnvelope {
     const words: NormalizedWord[] = [];
     const utterances: NormalizedUtterance[] = [];
@@ -274,7 +275,6 @@ export class DeepgramClient {
     const envelope: TranscriptEnvelope = {
       episode_id: episodeId,
       asr_provider: 'deepgram',
-      raw: deepgramResponse,
       words,
       utterances,
       paragraphs,
@@ -285,6 +285,12 @@ export class DeepgramClient {
         created_at: deepgramResponse.metadata.created,
       },
     };
+
+    if (rawKey) {
+      envelope.raw_s3_key = rawKey;
+    } else {
+      envelope.raw = deepgramResponse;
+    }
 
     // Add deepgram_speakers only if we found speaker segments
     if (deepgramSpeakers.length > 0) {

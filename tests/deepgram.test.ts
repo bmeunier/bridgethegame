@@ -219,6 +219,54 @@ describe('DeepgramClient', () => {
       });
     });
 
+    it('stores only the raw S3 pointer when provided', () => {
+      const mockResponse: DeepgramApiResponse = {
+        metadata: {
+          transaction_key: 'transaction-key',
+          request_id: 'request-id',
+          sha256: 'sha',
+          created: '2024-01-01T00:00:00Z',
+          duration: 3,
+          channels: 1,
+          models: ['general'],
+          model_info: {
+            general: {
+              name: 'general',
+              version: '1.0.0',
+              arch: 'dg-decode',
+            },
+          },
+        },
+        results: {
+          channels: [
+            {
+              alternatives: [
+                {
+                  transcript: 'hi',
+                  confidence: 0.99,
+                  words: [
+                    {
+                      word: 'hi',
+                      start: 0,
+                      end: 0.5,
+                      confidence: 0.99,
+                      punctuated_word: 'Hi',
+                    },
+                  ],
+                },
+              ],
+            },
+          ],
+        },
+      };
+
+      const rawKey = 'transcripts/test-episode/deepgram_raw.json';
+      const envelope = client.parseResponse('test-episode', mockResponse, rawKey);
+
+      expect(envelope.raw).toBeUndefined();
+      expect(envelope.raw_s3_key).toBe(rawKey);
+    });
+
     it('should handle response without utterances', () => {
       const mockResponse: DeepgramApiResponse = {
         metadata: {

@@ -118,8 +118,8 @@ export const transcribeEpisode = inngest.createFunction(
       }
     });
 
-    // Step 2: Call Deepgram API
-    const deepgramResponse = await step.run("deepgram-transcribe", async () => {
+    // Step 2: Call Deepgram API and save raw response to S3
+    const deepgramMetadata = await step.run("deepgram-transcribe", async () => {
       try {
         const response = await deepgramClient.transcribeFromUrl(audioData.url, {
           model: "general",
@@ -153,16 +153,49 @@ export const transcribeEpisode = inngest.createFunction(
           }));
         }
 
+        const wordCount = response.results.channels[0].alternatives[0].words?.length || 0;
+        const utteranceCount = response.results.channels[0].alternatives[0].utterances?.length || 0;
+
         console.log(JSON.stringify({
           scope: "transcribe_episode",
           action: "deepgram_success",
           episode_id,
           request_id: response.metadata.request_id,
           duration: response.metadata.duration,
-          word_count: response.results.channels[0].alternatives[0].words?.length || 0,
+          word_count: wordCount,
         }));
 
-        return response;
+        // Save raw response to S3 immediately
+        const rawKey = StorageClient.getTranscriptKey(episode_id, 'deepgram_raw');
+
+        try {
+          await storage.saveJson(rawKey, response);
+
+          console.log(JSON.stringify({
+            scope: "transcribe_episode",
+            action: "raw_saved_to_s3",
+            episode_id,
+            s3_key: rawKey,
+          }));
+        } catch (s3Error) {
+          console.error(JSON.stringify({
+            scope: "transcribe_episode",
+            status: "error",
+            error_type: "s3_save_raw",
+            episode_id,
+            message: s3Error instanceof Error ? s3Error.message : "Unknown error",
+          }));
+          throw s3Error;
+        }
+
+        // Return only lightweight metadata
+        return {
+          s3_raw_key: rawKey,
+          request_id: response.metadata.request_id,
+          duration: response.metadata.duration,
+          word_count: wordCount,
+          utterance_count: utteranceCount,
+        };
       } catch (error) {
         console.error(JSON.stringify({
           scope: "transcribe_episode",
@@ -175,12 +208,25 @@ export const transcribeEpisode = inngest.createFunction(
       }
     });
 
-    // Step 3: Parse and normalize transcript (return only summary to avoid output_too_large)
-    let transcriptEnvelope: TranscriptEnvelope;
-
-    const transcriptSummary = await step.run("parse-transcript", async () => {
+    // Step 3: Load from S3, parse, normalize, and save transcript
+    const transcriptSummary = await step.run("parse-and-save-transcript", async () => {
       try {
-        const envelope = deepgramClient.parseResponse(episode_id, deepgramResponse);
+        // Load raw response from S3
+        console.log(JSON.stringify({
+          scope: "transcribe_episode",
+          action: "loading_raw_from_s3",
+          episode_id,
+          s3_key: deepgramMetadata.s3_raw_key,
+        }));
+
+        const deepgramResponse = await storage.loadJson<DeepgramApiResponse>(deepgramMetadata.s3_raw_key);
+
+        // Parse the response
+        const envelope = deepgramClient.parseResponse(
+          episode_id,
+          deepgramResponse,
+          deepgramMetadata.s3_raw_key
+        );
 
         // Validate envelope
         if (!envelope.words || envelope.words.length === 0) {
@@ -200,8 +246,30 @@ export const transcribeEpisode = inngest.createFunction(
           paragraph_count: envelope.paragraphs.length,
         }));
 
-        // Store full envelope for later use in S3 save step
-        transcriptEnvelope = envelope;
+        // Save normalized envelope to S3
+        const normalizedKey = StorageClient.getTranscriptKey(episode_id, 'deepgram');
+
+        try {
+          await storage.saveJson(normalizedKey, envelope);
+
+          console.log(JSON.stringify({
+            scope: "transcribe_episode",
+            action: "normalized_saved_to_s3",
+            episode_id,
+            transcript_key: normalizedKey,
+          }));
+        } catch (saveError) {
+          console.error(JSON.stringify({
+            scope: "transcribe_episode",
+            status: "error",
+            error_type: "s3_save_normalized",
+            episode_id,
+            message: saveError instanceof Error ? saveError.message : "Unknown error",
+          }));
+
+          // Keep the raw payload intact so retries can re-parse it
+          throw saveError;
+        }
 
         // Return only summary data to avoid Inngest output_too_large error
         return {
@@ -209,12 +277,13 @@ export const transcribeEpisode = inngest.createFunction(
           utterance_count: envelope.utterances.length,
           paragraph_count: envelope.paragraphs.length,
           duration: envelope.metadata?.duration || 0,
+          transcript_key: normalizedKey,
         };
       } catch (error) {
         console.error(JSON.stringify({
           scope: "transcribe_episode",
           status: "error",
-          error_type: "parse",
+          error_type: "parse_and_save",
           episode_id,
           message: error instanceof Error ? error.message : "Unknown error",
         }));
@@ -222,72 +291,12 @@ export const transcribeEpisode = inngest.createFunction(
       }
     });
 
-    // Step 4: Save to S3
-    await step.run("save-transcript", async () => {
-      try {
-        // Save normalized envelope
-        await storage.saveJson(transcriptKey, transcriptEnvelope);
-
-        // Save raw response
-        const rawKey = StorageClient.getTranscriptKey(episode_id, 'deepgram_raw');
-
-        try {
-          await storage.saveJson(rawKey, deepgramResponse);
-        } catch (rawError) {
-          console.error(JSON.stringify({
-            scope: "transcribe_episode",
-            status: "error",
-            error_type: "storage_raw",
-            episode_id,
-            message: rawError instanceof Error ? rawError.message : "Unknown error",
-          }));
-
-          try {
-            await storage.deleteObject(transcriptKey);
-            console.log(JSON.stringify({
-              scope: "transcribe_episode",
-              action: "rollback_normalized",
-              episode_id,
-              transcript_key: transcriptKey,
-            }));
-          } catch (cleanupError) {
-            console.error(JSON.stringify({
-              scope: "transcribe_episode",
-              status: "error",
-              error_type: "storage_cleanup",
-              episode_id,
-              message: cleanupError instanceof Error ? cleanupError.message : "Unknown error",
-            }));
-          }
-
-          throw rawError;
-        }
-
-        console.log(JSON.stringify({
-          scope: "transcribe_episode",
-          action: "save_success",
-          episode_id,
-          transcript_key: transcriptKey,
-          raw_key: rawKey,
-        }));
-      } catch (error) {
-        console.error(JSON.stringify({
-          scope: "transcribe_episode",
-          status: "error",
-          error_type: "storage",
-          episode_id,
-          message: error instanceof Error ? error.message : "Unknown error",
-        }));
-        throw error;
-      }
-    });
-
-    // Step 5: Emit completion event
+    // Step 4: Emit completion event
     await step.sendEvent("transcript-complete", {
       name: "episode.transcript.completed",
       data: {
         episode_id,
-        transcript_key: transcriptKey,
+        transcript_key: transcriptSummary.transcript_key,
         word_count: transcriptSummary.word_count,
         duration: transcriptSummary.duration,
       },
@@ -308,7 +317,7 @@ export const transcribeEpisode = inngest.createFunction(
     return {
       status: "success",
       episode_id,
-      transcript_key: transcriptKey,
+      transcript_key: transcriptSummary.transcript_key,
       word_count: transcriptSummary.word_count,
       utterance_count: transcriptSummary.utterance_count,
       paragraph_count: transcriptSummary.paragraph_count,
