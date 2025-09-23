@@ -341,6 +341,42 @@ export class StorageClient {
   static getAudioKey(episodeId: string): string {
     return `audio/${episodeId}/episode.mp3`;
   }
+
+  /**
+   * Generate a pre-signed URL for temporary public access
+   */
+  async getSignedUrl(key: string, expiresIn: number = 3600): Promise<string> {
+    const { GetObjectCommand } = await import('@aws-sdk/client-s3');
+    const { getSignedUrl } = await import('@aws-sdk/s3-request-presigner');
+
+    const command = new GetObjectCommand({
+      Bucket: this.bucketName,
+      Key: key,
+    });
+
+    try {
+      const signedUrl = await getSignedUrl(this.s3, command, { expiresIn });
+
+      console.log(JSON.stringify({
+        scope: 'storage_client',
+        action: 'signed_url_generated',
+        bucket: this.bucketName,
+        key,
+        expires_in: expiresIn,
+      }));
+
+      return signedUrl;
+    } catch (error) {
+      console.error(JSON.stringify({
+        scope: 'storage_client',
+        action: 'signed_url_error',
+        bucket: this.bucketName,
+        key,
+        error: error instanceof Error ? error.message : error,
+      }));
+      throw error;
+    }
+  }
 }
 
 // Export singleton instance (will be initialized with env vars)

@@ -291,11 +291,13 @@ export const transcribeEpisode = inngest.createFunction(
       }
     });
 
-    // Step 4: Emit completion event
+    // Step 4: Emit completion event to trigger diarization
     await step.sendEvent("transcript-complete", {
-      name: "episode.transcript.completed",
+      name: "episode.transcribed.deepgram.completed",
       data: {
         episode_id,
+        podcast_id: "askthegame", // TODO: Make this configurable for multi-podcast support
+        audio_url,
         transcript_key: transcriptSummary.transcript_key,
         word_count: transcriptSummary.word_count,
         duration: transcriptSummary.duration,

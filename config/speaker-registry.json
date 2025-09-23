@@ -1,0 +1,17 @@
+{
+  "askthegame": {
+    "ALEX_HORMOZI": {
+      "displayName": "Alex Hormozi",
+      "referenceId": "alex_hormozi_voice_profile",
+      "threshold": 0.85,
+      "voiceSamples": [
+        "s3://bridgethegame-audio-123/voiceprints/alex_sample-001.mp3",
+        "s3://bridgethegame-audio-123/voiceprints/alex_sample-002.mp3",
+        "s3://bridgethegame-audio-123/voiceprints/alex_sample-003.mp3"
+      ],
+      "notes": "Host of The Game podcast - confidence threshold tuned for high accuracy",
+      "createdAt": "2024-01-01T00:00:00Z",
+      "updatedAt": "2024-01-01T00:00:00Z"
+    }
+  }
+}
