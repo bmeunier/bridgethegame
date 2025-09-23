@@ -204,6 +204,10 @@ export async function saveSpeakerRegistry(registry: SpeakerRegistry): Promise<vo
  * Generate S3 keys for pyannote artifacts
  */
 export class PyannoteStorageKeys {
+  static getDiarizationKey(episodeId: string): string {
+    return `transcripts/${episodeId}/diarization.json`;
+  }
+
   static getEnrichedTranscriptKey(episodeId: string): string {
     return `transcripts/${episodeId}/enriched.json`;
   }

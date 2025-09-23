@@ -98,3 +98,6 @@ access_token.json
 *.backup
 *.old
 *~
+
+# Archives
+archives/

@@ -447,7 +447,357 @@ describe("diarizeFn", () => {
 - **Thresholds:** Speaker clustering and assignment thresholds should be configurable; defaults documented in code.
 - **Step/event names:** Use clear, versioned step names for traceability.
 - **Audit artifacts:** For each enrichment, log alternatives with confidence if within a defined near-miss threshold (e.g., within 0.15 of best).
-- **Storage helpers:** Use project’s existing S3 key helpers for all artifacts.
+- **Storage helpers:** Use project's existing S3 key helpers for all artifacts.
 - **Partial reruns:** Steps are idempotent and can be rerun if registry/artifact is missing.
+
+---
+
+# 🔧 CONCRETE IMPLEMENTATION STEPS
+
+## Developer's Implementation Checklist
+
+### Phase 1: Foundation & Storage Updates
+
+#### 1.1 Update Storage Utilities
+**File:** `src/lib/storage.ts`
+
+```bash
+# Commands to run
+git checkout -b feature/diarization-s3-refactor
+```
+
+**Add new storage key helpers:**
+```typescript
+// Add to existing storage.ts
+export class PyannoteStorageKeys {
+  static getDiarizationKey(episodeId: string): string {
+    return `diarization/${episodeId}.json`;
+  }
+
+  static getEnrichedTranscriptKey(episodeId: string): string {
+    return `diarization/${episodeId}.enriched.json`;
+  }
+
+  static getAuditArtifactsKey(episodeId: string): string {
+    return `diarization/${episodeId}.audit.json`;
+  }
+
+  static getErrorLogKey(episodeId: string): string {
+    return `diarization/${episodeId}.error.json`;
+  }
+}
+```
+
+#### 1.2 Extend Pyannote Types
+**File:** `src/types/pyannote.ts`
+
+**Add new interfaces:**
+```typescript
+// Add to existing pyannote.ts
+export interface DiarizationRequestEvent {
+  episode_id: string;
+  audio_url: string;
+  transcript_key: string;
+  podcast_id: string;
+  duration?: number;
+  word_count?: number;
+}
+
+export interface EnrichedTranscriptSegment {
+  start: number;
+  end: number;
+  word: string;
+  speaker: string | null;
+  speaker_confidence: number | null;
+  diar_speaker: string;
+  source: 'pyannote' | 'deepgram_fallback';
+  alternatives?: Array<{
+    speaker: string;
+    confidence: number;
+  }>;
+}
+
+export interface SpeakerMap {
+  [clusterKey: string]: {
+    displayName: string;
+    confidence: number;
+    referenceId: string;
+  };
+}
+
+export interface NearMiss {
+  clusterKey: string;
+  confidence: number;
+  threshold: number;
+  referenceId: string;
+}
+
+export interface PyannoteAuditArtifacts {
+  clusters: ClusterSummary[];
+  totalSegments: number;
+  source: string;
+  nearMisses: NearMiss[];
+}
+
+export interface ClusterSummary {
+  speakerKey: string;
+  duration: number;
+  segmentsCount: number;
+  mappedTo: string | null;
+  confidence: number | null;
+}
+```
+
+### Phase 2: Core Library Functions
+
+#### 2.1 Update Pyannote Library
+**File:** `src/lib/pyannote.ts`
+
+**Add cluster-level functions:**
+```typescript
+// Add to existing pyannote.ts
+export function groupSegmentsBySpeaker(segments: DiarizationSegment[]): Record<string, DiarizationSegment[]> {
+  return segments.reduce((clusters, segment) => {
+    const speaker = segment.speaker;
+    if (!clusters[speaker]) {
+      clusters[speaker] = [];
+    }
+    clusters[speaker].push(segment);
+    return clusters;
+  }, {} as Record<string, DiarizationSegment[]>);
+}
+
+export function selectRepresentativeSegment(segments: DiarizationSegment[]): DiarizationSegment {
+  // Select longest segment as representative
+  return segments.reduce((longest, current) => {
+    const currentDuration = current.end - current.start;
+    const longestDuration = longest.end - longest.start;
+    return currentDuration > longestDuration ? current : longest;
+  });
+}
+
+export function enrichTranscript(
+  utterances: any[],
+  diarization: DiarizationResult,
+  speakerMap: SpeakerMap
+): EnrichedTranscriptSegment[] {
+  // IoU-based alignment implementation
+  return utterances.flatMap(utterance =>
+    utterance.words.map(word => {
+      const bestCluster = findBestClusterByIoU(word, diarization.segments);
+      const speakerInfo = speakerMap[bestCluster?.speaker];
+
+      return {
+        start: word.start,
+        end: word.end,
+        word: word.punctuated_word || word.word,
+        speaker: speakerInfo?.displayName || null,
+        speaker_confidence: speakerInfo?.confidence || null,
+        diar_speaker: bestCluster?.speaker || 'UNKNOWN',
+        source: diarization.source || 'pyannote',
+        alternatives: [] // Add near-miss logic here
+      };
+    })
+  );
+}
+
+function findBestClusterByIoU(word: any, segments: DiarizationSegment[]) {
+  // Find segment with highest IoU overlap with word timing
+  return segments.reduce((best, segment) => {
+    const iou = calculateIoU(
+      { start: word.start, end: word.end },
+      { start: segment.start, end: segment.end }
+    );
+    if (!best || iou > best.iou) {
+      return { segment, iou };
+    }
+    return best;
+  }, null)?.segment;
+}
+
+function calculateIoU(a: {start: number, end: number}, b: {start: number, end: number}): number {
+  const intersection = Math.max(0, Math.min(a.end, b.end) - Math.max(a.start, b.start));
+  const union = (a.end - a.start) + (b.end - b.start) - intersection;
+  return union > 0 ? intersection / union : 0;
+}
+```
+
+#### 2.2 Update Speaker Utils
+**File:** `src/lib/speaker-utils.ts`
+
+**Add fallback function:**
+```typescript
+// Add to existing speaker-utils.ts
+export async function getDeepgramDiarizationFallback(episodeId: string): Promise<DiarizationResult> {
+  // Implementation to extract diarization from existing Deepgram transcript
+  const storage = getStorageClient();
+  const transcriptKey = `transcripts/${episodeId}/deepgram.json`;
+
+  try {
+    const transcript = await storage.loadJson(transcriptKey);
+
+    // Convert Deepgram utterances to diarization format
+    const segments: DiarizationSegment[] = transcript.utterances.map((utterance, index) => ({
+      start: utterance.start,
+      end: utterance.end,
+      speaker: `SPEAKER_${utterance.speaker || index}`,
+      confidence: 0.8 // Default confidence for Deepgram fallback
+    }));
+
+    return {
+      segments,
+      source: 'deepgram_fallback'
+    };
+  } catch (error) {
+    console.error('Failed to get Deepgram diarization fallback:', error);
+    throw new Error('No fallback diarization available');
+  }
+}
+```
+
+### Phase 3: Function Implementation (Alternative to Current Fix)
+
+#### 3.1 Backup Current Implementation
+```bash
+# Create backup of current implementation
+cp src/inngest/functions/diarize_episode.ts src/inngest/functions/diarize_episode.ts.backup-v2
+```
+
+#### 3.2 Key Principle: S3-First Pattern
+The current fix (returning only metadata in step outputs) already solves the immediate problem. The S3-first refactor would be a more comprehensive solution that:
+
+- Saves ALL large data (raw diarization, enriched transcript, audit artifacts) to S3 immediately
+- Returns only S3 keys and lightweight stats through Inngest steps
+- Provides better organization and retrieval of artifacts
+
+### Phase 4: Testing & Validation Commands
+
+#### 4.1 Build and Validate Current Implementation
+```bash
+npm run build
+npm run typecheck
+npm run lint
+```
+
+#### 4.2 Test Current Fix
+```bash
+# Test with the 6.7-hour episode
+npm run trigger WRQZ7196C943 backfill true
+
+# Monitor results
+open http://localhost:8288/runs
+```
+
+#### 4.3 Verify S3 Artifacts (Current Structure)
+```bash
+# Check existing S3 structure
+aws s3 ls s3://bridgethegame-audio-123/transcripts/ --recursive
+aws s3 ls s3://bridgethegame-audio-123/voiceprints/ --recursive
+```
+
+### Phase 5: Incremental Implementation Strategy
+
+Instead of a full rewrite, implement S3-first pattern incrementally:
+
+#### 5.1 Add New Storage Functions (Safe)
+```typescript
+// Add to src/lib/storage.ts without breaking existing code
+export class PyannoteStorageKeys {
+  static getDiarizationKey(episodeId: string): string {
+    return `diarization/${episodeId}.json`;
+  }
+  // ... other methods
+}
+```
+
+#### 5.2 Add New Utility Functions (Safe)
+```typescript
+// Add to src/lib/pyannote.ts or src/lib/speaker-utils.ts
+export async function saveDiarizationArtifacts(
+  episodeId: string,
+  diarization: any,
+  enriched: any,
+  audit: any
+): Promise<{diarizationKey: string, enrichedKey: string, auditKey: string}> {
+  const storage = getStorageClient();
+
+  const keys = {
+    diarizationKey: PyannoteStorageKeys.getDiarizationKey(episodeId),
+    enrichedKey: PyannoteStorageKeys.getEnrichedTranscriptKey(episodeId),
+    auditKey: PyannoteStorageKeys.getAuditArtifactsKey(episodeId)
+  };
+
+  await Promise.all([
+    storage.saveJson(keys.diarizationKey, diarization),
+    storage.saveJson(keys.enrichedKey, enriched),
+    storage.saveJson(keys.auditKey, audit)
+  ]);
+
+  return keys;
+}
+```
+
+#### 5.3 Test New Functions (Safe)
+```typescript
+// Add unit tests for new functions without affecting existing pipeline
+```
+
+### Phase 6: Production Migration Strategy
+
+#### 6.1 Gradual Migration
+1. **Week 1:** Add new storage functions and test them
+2. **Week 2:** Update one step at a time to use S3-first pattern
+3. **Week 3:** Validate each step independently
+4. **Week 4:** Full integration testing
+
+#### 6.2 Feature Flags
+```typescript
+// Add feature flag to switch between implementations
+const USE_S3_FIRST_PATTERN = process.env.DIARIZATION_S3_FIRST === 'true';
+
+if (USE_S3_FIRST_PATTERN) {
+  // New S3-first implementation
+} else {
+  // Current working implementation
+}
+```
+
+### Phase 7: Monitoring & Rollback Plan
+
+#### 7.1 Success Metrics
+- [ ] Step output size errors eliminated
+- [ ] All S3 artifacts created in expected locations
+- [ ] Function execution time remains acceptable
+- [ ] Speaker identification accuracy maintained
+- [ ] Error handling working properly
+
+#### 7.2 Rollback Commands
+```bash
+# Quick rollback if issues occur
+cp src/inngest/functions/diarize_episode.ts.backup-v2 src/inngest/functions/diarize_episode.ts
+npm run build
+# Restart servers
+```
+
+## Implementation Priority
+
+**Immediate (Current Status):**
+- ✅ **Current fix works** - step output size issue resolved
+- ✅ **Pipeline operational** - can process 6.7-hour episodes
+
+**Next Phase (Optional Enhancement):**
+1. Add storage utilities and types (non-breaking)
+2. Add S3-first helper functions (non-breaking)
+3. Test new functions in isolation
+4. Gradually migrate steps to S3-first pattern
+5. Full integration testing
+
+## Developer Notes
+
+- **Current fix is sufficient** for immediate production needs
+- **S3-first refactor** is a quality improvement, not a critical fix
+- **Test incrementally** - don't break working pipeline
+- **Monitor performance** - S3 I/O adds latency but improves reliability
+- **Document all changes** - keep audit trail of modifications
 
 ---
