@@ -229,7 +229,7 @@ export const diarizeEpisode = inngest.createFunction(
     });
 
     // Step 4: Enrich transcript with speaker information
-    const enrichedTranscript = await step.run("enrich-transcript", async () => {
+    const enrichmentResult = await step.run("enrich-transcript", async () => {
       // Use utterances for enrichment (more meaningful than individual words)
       const enriched = enrichTranscript(transcript.utterances, diarization, speakerMap);
 
@@ -241,7 +241,12 @@ export const diarizeEpisode = inngest.createFunction(
         identified_segments: enriched.filter(s => s.speaker_confidence !== null).length,
       }));
 
-      return enriched;
+      // Return only summary data, not the full transcript
+      return {
+        enriched_segments_count: enriched.length,
+        identified_segments_count: enriched.filter(s => s.speaker_confidence !== null).length,
+        enriched_transcript: enriched, // Store for use in next step
+      };
     });
 
     // Step 5: Save enriched transcript and audit artifacts
@@ -268,7 +273,7 @@ export const diarizeEpisode = inngest.createFunction(
 
       // Save both artifacts
       await Promise.all([
-        storage.saveJson(enrichedKey, enrichedTranscript),
+        storage.saveJson(enrichedKey, enrichmentResult.enriched_transcript),
         storage.saveJson(auditKey, audit),
       ]);
 
@@ -304,7 +309,7 @@ export const diarizeEpisode = inngest.createFunction(
       diarization_source: diarization.source,
       identified_speakers: Object.keys(speakerMap).length,
       near_misses: nearMisses.length,
-      enriched_segments: enrichedTranscript.length,
+      enriched_segments: enrichmentResult.enriched_segments_count,
     }));
 
     return {
@@ -313,7 +318,7 @@ export const diarizeEpisode = inngest.createFunction(
       diarization_source: diarization.source,
       identified_speakers: Object.keys(speakerMap).length,
       near_misses_count: nearMisses.length,
-      enriched_segments_count: enrichedTranscript.length,
+      enriched_segments_count: enrichmentResult.enriched_segments_count,
       processing_time_ms: processingTime,
       s3_enriched_path: enrichedPath,
       s3_audit_path: auditPath,

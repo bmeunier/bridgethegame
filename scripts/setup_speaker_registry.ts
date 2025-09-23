@@ -114,20 +114,21 @@ async function setupSpeakerRegistry() {
     const updatedRegistry: SpeakerRegistry = { askthegame: {} };
 
     for (const [speakerKey, speakerInfo] of Object.entries(registryConfig.askthegame)) {
-      console.log(`\n   Processing ${speakerKey} (${speakerInfo.displayName})...`);
+      const speaker = speakerInfo as any; // Type assertion for configuration data
+      console.log(`\n   Processing ${speakerKey} (${speaker.displayName})...`);
 
       // Create voice profile using the samples
       const referenceId = await createPyannoteVoiceProfile(
-        speakerInfo.voiceSamples,
-        speakerInfo.displayName,
+        speaker.voiceSamples,
+        speaker.displayName,
         process.env.PYANNOTE_API_KEY!
       );
 
       // Update registry with actual Pyannote reference ID
       updatedRegistry.askthegame[speakerKey] = {
-        displayName: speakerInfo.displayName,
+        displayName: speaker.displayName,
         referenceId: referenceId,
-        threshold: speakerInfo.threshold,
+        threshold: speaker.threshold,
       };
 
       console.log(`   ✓ Updated registry entry with reference ID: ${referenceId}`);

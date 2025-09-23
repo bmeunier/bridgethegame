@@ -212,7 +212,7 @@ export async function createVoiceprintFromMultipleSamples(
         }));
 
         // Try to extract voiceprint from different possible locations
-        const voiceprint = result.output?.voiceprint || result.data?.voiceprint || result.result?.voiceprint;
+        const voiceprint = (result as any).output?.voiceprint || (result as any).data?.voiceprint || (result as any).result?.voiceprint;
         if (voiceprint) {
           voiceprints.push(voiceprint);
           console.log(JSON.stringify({
