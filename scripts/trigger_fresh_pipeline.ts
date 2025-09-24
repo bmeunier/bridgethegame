@@ -8,7 +8,7 @@
 import 'dotenv/config';
 import { inngest } from '../src/inngest/client';
 
-async function triggerFreshPipeline(episodeId: string) {
+export async function triggerEpisode(episodeId: string) {
   console.log(`🚀 Triggering fresh pipeline for episode: ${episodeId}`);
 
   try {
@@ -59,7 +59,7 @@ async function main() {
   }
 
   try {
-    await triggerFreshPipeline(episodeId);
+    await triggerEpisode(episodeId);
     console.log(`\n🎉 Fresh pipeline triggered successfully for episode ${episodeId}!`);
   } catch (error) {
     console.error('❌ Failed to trigger fresh pipeline:', error);
