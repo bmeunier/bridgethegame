@@ -1,16 +1,19 @@
 /**
  * Inngest function for Pyannote speaker diarization and identification
  *
- * This function implements Plan 4's cluster-level approach:
- * - Groups diarization segments by speaker
- * - Identifies speakers using representative clips
- * - Falls back to Deepgram diarization if Pyannote fails
- * - Tracks near-misses for threshold tuning
- * - Generates audit artifacts for debugging
+ * STATELESS S3-FIRST PATTERN:
+ * - Every step rehydrates data from S3 (no closure variables)
+ * - Large data always saved to S3, never returned inline
+ * - Step outputs kept tiny (keys + small stats only)
+ * - Guard checks prevent null/undefined crashes
+ * - Full retry safety: steps can fail and retry without data loss
  */
 
 import { inngest } from "../client";
-import { getStorageClient } from "../../lib/storage";
+import { keys } from "../../lib/keys";
+import { mustLoadJson, tryLoadJson, saveJson } from "../../lib/storage_safe";
+import { safeEntries, ensureArray, isDefined } from "../../lib/guards";
+import { minimalStepResult } from "../../lib/safe_step_output";
 import {
   diarize,
   identifySpeaker,
@@ -22,16 +25,16 @@ import {
   getSpeakerRegistry,
   getAudioClipUrl,
   getDeepgramDiarizationFallback,
-  PyannoteStorageKeys
 } from "../../lib/speaker-utils";
-import { safeStepOutput, createSafeStepResult } from "../../lib/inngest-utils";
 import {
   DiarizationRequestEvent,
   SpeakerMap,
+  SpeakerMapEntry,
   NearMiss,
   PyannoteAuditArtifacts,
   ClusterSummary,
   EnrichedTranscriptSegment,
+  PyannoteDiarizationResponse,
 } from "../../types/pyannote";
 import { TranscriptEnvelope } from "../../types/deepgram";
 
@@ -79,147 +82,97 @@ export const diarizeEpisode = inngest.createFunction(
       throw new Error(error);
     }
 
-    const storage = getStorageClient();
-
-    // Variables to store large data outside of step outputs
-    let registry: any;
-    let diarization: any;
-    let speakerMap: SpeakerMap = {};
-    let nearMisses: NearMiss[] = [];
-    let enrichedTranscript: EnrichedTranscriptSegment[] = [];
-
-    // Step 1: Load speaker registry (safe step output - metadata only)
-    const registryResult = await step.run("load-speaker-registry", async () => {
-      const speakerRegistry = await getSpeakerRegistry(podcast_id);
-
-      console.log(JSON.stringify({
-        scope: "diarize_episode",
-        action: "registry_loaded",
-        episode_id,
-        registry_speakers: Object.keys(speakerRegistry).length,
-      }));
-
-      // Store registry in closure for use in later steps (avoid step output size limit)
-      registry = speakerRegistry;
-
-      return safeStepOutput({
-        episode_id,
-        speakers_count: Object.keys(speakerRegistry).length,
-        speakers: Object.keys(speakerRegistry).slice(0, 5), // Only first 5 names for debugging
-      }, "load-speaker-registry");
-    });
-
-    // Load transcript outside of step to avoid large output
-    const transcript = await storage.loadJson<TranscriptEnvelope>(transcript_key);
-
-    console.log(JSON.stringify({
-      scope: "diarize_episode",
-      action: "transcript_loaded",
-      episode_id,
-      transcript_words: transcript.words.length,
-      transcript_utterances: transcript.utterances.length,
-    }));
-
-    // Step 2: Perform diarization and save to S3 (strict safe step output)
+    // Step 1: Diarize audio (Pyannote or fallback) - S3 first pattern
     const diarizationResult = await step.run("pyannote-diarization", async () => {
+      const diarizationKey = keys.diarizationRaw(episode_id);
+
       try {
+        // Try Pyannote diarization
         const result = await diarize(audio_url, process.env.PYANNOTE_API_KEY!);
 
-        // Save full diarization to S3 immediately
-        const diarizationKey = PyannoteStorageKeys.getDiarizationKey(episode_id);
-        await storage.saveJson(diarizationKey, result);
+        // Save immediately to S3
+        await saveJson(diarizationKey, result);
 
         console.log(JSON.stringify({
           scope: "diarize_episode",
           action: "diarization_success",
           episode_id,
-          source: "pyannote",
-          segments_count: result.segments.length,
-          s3_key: diarizationKey,
+          source: "pyannote_precision2",
+          segments_count: result.segments?.length ?? 0,
+          diarization_key: diarizationKey,
         }));
 
-        // Store for use outside step (avoids large step output)
-        diarization = result;
-
-        // Return ONLY safe metadata - no large JSON
-        return safeStepOutput(
-          createSafeStepResult(episode_id, diarizationKey, {
-            source: "pyannote",
-            segments_count: result.segments.length,
-          }),
-          "pyannote-diarization"
+        return minimalStepResult(episode_id,
+          { diarization: diarizationKey },
+          {
+            segments: result.segments?.length ?? 0,
+            source: "pyannote_precision2",
+          }
         );
       } catch (error) {
         console.warn(JSON.stringify({
           scope: "diarize_episode",
           action: "diarization_fallback",
           episode_id,
-          pyannote_error: error instanceof Error ? error.message : error,
-          message: "Falling back to Deepgram diarization",
+          pyannote_error: error instanceof Error ? error.message : String(error),
         }));
 
+        // Fallback to Deepgram
         const fallback = await getDeepgramDiarizationFallback(episode_id);
 
-        // Save fallback diarization to S3 immediately
-        const fallbackKey = PyannoteStorageKeys.getDiarizationKey(episode_id);
-        await storage.saveJson(fallbackKey, fallback);
+        // Save fallback to S3
+        await saveJson(diarizationKey, fallback);
 
         console.log(JSON.stringify({
           scope: "diarize_episode",
           action: "fallback_success",
           episode_id,
           source: "deepgram_fallback",
-          segments_count: fallback.segments.length,
-          s3_key: fallbackKey,
+          segments_count: fallback.segments?.length ?? 0,
+          diarization_key: diarizationKey,
         }));
 
-        // Store for use outside step
-        diarization = fallback;
-
-        // Return ONLY safe metadata
-        return safeStepOutput(
-          createSafeStepResult(episode_id, fallbackKey, {
+        return minimalStepResult(episode_id,
+          { diarization: diarizationKey },
+          {
+            segments: fallback.segments?.length ?? 0,
             source: "deepgram_fallback",
-            segments_count: fallback.segments.length,
-          }),
-          "pyannote-diarization-fallback"
+          }
         );
       }
     });
 
-    // Step 3: Cluster-level speaker identification (strict safe step output)
+    // Step 2: Identify speakers by cluster - stateless pattern
     const speakerResult = await step.run("cluster-speaker-identification", async () => {
-      // Reload diarization data from S3 if closure variable is undefined (function retry scenario)
-      if (!diarization) {
-        console.log(JSON.stringify({
-          scope: "diarize_episode",
-          action: "reload_diarization_from_s3",
-          episode_id,
-          reason: "closure_variable_undefined_after_retry",
-        }));
+      // ALWAYS rehydrate from S3 at step start (stateless pattern)
+      const diarizationKey = keys.diarizationRaw(episode_id);
+      const raw = await mustLoadJson<PyannoteDiarizationResponse>(diarizationKey, "diarization");
 
-        const diarizationKey = PyannoteStorageKeys.getDiarizationKey(episode_id);
-        diarization = await storage.loadJson(diarizationKey);
+      console.log(JSON.stringify({
+        scope: "diarize_episode",
+        step: "cluster-speaker-identification",
+        action: "reload_from_storage",
+        episode_id,
+        diarization_key: diarizationKey,
+        segments: raw?.segments?.length ?? 0,
+      }));
 
-        console.log(JSON.stringify({
-          scope: "diarize_episode",
-          action: "diarization_reloaded",
-          episode_id,
-          s3_key: diarizationKey,
-          segments_count: diarization?.segments?.length || 0,
-        }));
-      }
+      // Load speaker registry
+      const registry = await getSpeakerRegistry(podcast_id);
 
-      const clusters = groupSegmentsBySpeaker(diarization.segments);
+      // Group segments by speaker (safe with guards)
+      const segments = raw?.segments || [];
+      const clusters = groupSegmentsBySpeaker(segments);
+
       const identifiedSpeakers: SpeakerMap = {};
       const missedMatches: NearMiss[] = [];
 
-      // Process each cluster
-      for (const [clusterKey, segments] of Object.entries(clusters)) {
-        if (segments.length === 0) continue;
+      // Process each cluster safely
+      for (const [clusterKey, clusterSegments] of safeEntries(clusters)) {
+        if (!clusterSegments || clusterSegments.length === 0) continue;
 
-        // Select representative segment for identification
-        const repSegment = selectRepresentativeSegment(segments);
+        // Select representative segment
+        const repSegment = selectRepresentativeSegment(clusterSegments);
         const clipUrl = await getAudioClipUrl(audio_url, repSegment.start, repSegment.end);
 
         let bestMatch = null;
@@ -227,7 +180,9 @@ export const diarizeEpisode = inngest.createFunction(
         let bestThreshold = 0;
 
         // Test against all registered speakers
-        for (const [refId, info] of Object.entries(registry)) {
+        for (const [refId, info] of safeEntries(registry)) {
+          if (!info) continue;
+
           try {
             const result = await identifySpeaker(clipUrl, process.env.PYANNOTE_API_KEY!, info.referenceId);
 
@@ -242,13 +197,13 @@ export const diarizeEpisode = inngest.createFunction(
               action: "identify_error",
               episode_id,
               cluster_key: clusterKey,
-              reference_id: info.referenceId,
-              error: error instanceof Error ? error.message : error,
+              reference_id: info?.referenceId,
+              error: error instanceof Error ? error.message : String(error),
             }));
           }
         }
 
-        // Apply threshold check and record results
+        // Apply threshold and record results
         if (bestMatch && bestConfidence >= bestThreshold) {
           identifiedSpeakers[clusterKey] = {
             displayName: bestMatch.displayName,
@@ -266,14 +221,13 @@ export const diarizeEpisode = inngest.createFunction(
             threshold: bestThreshold,
           }));
         } else if (bestMatch) {
-          // Record near-miss for threshold tuning
-          const nearMiss: NearMiss = {
+          // Record near-miss
+          missedMatches.push({
             clusterKey,
             confidence: bestConfidence,
             threshold: bestThreshold,
             referenceId: bestMatch.referenceId,
-          };
-          missedMatches.push(nearMiss);
+          });
 
           console.warn(JSON.stringify({
             scope: "diarize_episode",
@@ -283,190 +237,215 @@ export const diarizeEpisode = inngest.createFunction(
             confidence: bestConfidence,
             threshold: bestThreshold,
             reference_id: bestMatch.referenceId,
-            message: `Confidence ${bestConfidence} below threshold ${bestThreshold}`,
           }));
         }
       }
+
+      // Save speaker map and near-misses to S3
+      const speakerMapKey = keys.speakerMap(episode_id);
+      const nearMissesKey = keys.nearMisses(episode_id);
+
+      await saveJson(speakerMapKey, identifiedSpeakers);
+      await saveJson(nearMissesKey, missedMatches);
 
       console.log(JSON.stringify({
         scope: "diarize_episode",
         action: "identification_complete",
         episode_id,
-        identified_speakers: Object.keys(identifiedSpeakers).length,
+        identified: Object.keys(identifiedSpeakers).length,
         near_misses: missedMatches.length,
         total_clusters: Object.keys(clusters).length,
       }));
 
-      // Store in closure to avoid step output size limit
-      speakerMap = identifiedSpeakers;
-      nearMisses = missedMatches;
-
-      // Return ONLY safe metadata - no large speaker map or near-misses
-      return safeStepOutput({
-        episode_id,
-        identified_speakers_count: Object.keys(identifiedSpeakers).length,
-        near_misses_count: missedMatches.length,
-        total_clusters: Object.keys(clusters).length,
-      }, "cluster-speaker-identification");
+      return minimalStepResult(episode_id,
+        {
+          speaker_map: speakerMapKey,
+          near_misses: nearMissesKey,
+        },
+        {
+          identified: Object.keys(identifiedSpeakers).length,
+          near_misses: missedMatches.length,
+          clusters: Object.keys(clusters).length,
+        }
+      );
     });
 
-    // Step 4: Enrich transcript with speaker information (strict safe step output)
+    // Step 3: Enrich transcript with speaker labels - stateless, fallback-aware
     const enrichmentResult = await step.run("enrich-transcript", async () => {
-      // Reload data from S3 if closure variables are undefined (function retry scenario)
-      if (!diarization || !speakerMap) {
-        console.log(JSON.stringify({
-          scope: "diarize_episode",
-          action: "reload_data_for_enrichment",
-          episode_id,
-          reason: "closure_variables_undefined_after_retry",
-          diarization_undefined: !diarization,
-          speaker_map_undefined: !speakerMap,
-        }));
-
-        // Reload diarization if needed
-        if (!diarization) {
-          const diarizationKey = PyannoteStorageKeys.getDiarizationKey(episode_id);
-          diarization = await storage.loadJson(diarizationKey);
-        }
-
-        // For speakerMap, we need to reconstruct it from the previous step result
-        if (!speakerMap || Object.keys(speakerMap).length === 0) {
-          speakerMap = {}; // Will be empty, but function can continue
-          console.log(JSON.stringify({
-            scope: "diarize_episode",
-            action: "speaker_map_unavailable",
-            episode_id,
-            message: "Cannot reload speakerMap from S3 - using empty map",
-          }));
-        }
-      }
-
-      // Use utterances for enrichment (more meaningful than individual words)
-      enrichedTranscript = enrichTranscript(transcript.utterances, diarization, speakerMap);
+      // ALWAYS rehydrate from S3 (stateless pattern)
+      const transcript = await mustLoadJson<TranscriptEnvelope>(keys.transcript(episode_id), "transcript");
+      const diar = await tryLoadJson<PyannoteDiarizationResponse>(keys.diarizationRaw(episode_id));
+      const spkMap = await tryLoadJson<SpeakerMap>(keys.speakerMap(episode_id)) ?? {};
 
       console.log(JSON.stringify({
         scope: "diarize_episode",
-        action: "enrichment_complete",
+        step: "enrich-transcript",
+        action: "reload_from_storage",
         episode_id,
-        enriched_segments: enrichedTranscript.length,
-        identified_segments: enrichedTranscript.filter(s => s.speaker_confidence !== null).length,
+        transcript_utterances: transcript?.utterances?.length ?? 0,
+        diarization_segments: diar?.segments?.length ?? 0,
+        speaker_map_size: Object.keys(spkMap).length,
       }));
 
-      // Return ONLY safe metadata - NO large transcript data
-      return safeStepOutput({
-        episode_id,
-        enriched_segments_count: enrichedTranscript.length,
-        identified_segments_count: enrichedTranscript.filter(s => s.speaker_confidence !== null).length,
-      }, "enrich-transcript");
-    });
+      let enriched: EnrichedTranscriptSegment[];
 
-    // Step 5: Save enriched transcript and audit artifacts
-    const { enrichedPath, auditPath } = await step.run("save-artifacts", async () => {
-      // Reload data from S3 if closure variables are undefined (function retry scenario)
-      if (!diarization || !enrichedTranscript || !speakerMap || !nearMisses) {
+      if (diar && isDefined(diar.segments)) {
+        // Use Pyannote diarization with IoU merge
+        enriched = enrichTranscript(
+          transcript.utterances || [],
+          diar,
+          spkMap
+        );
+
         console.log(JSON.stringify({
           scope: "diarize_episode",
-          action: "reload_data_for_save_artifacts",
+          action: "enrichment_with_pyannote",
           episode_id,
-          reason: "closure_variables_undefined_after_retry",
-          diarization_undefined: !diarization,
-          enriched_transcript_undefined: !enrichedTranscript,
-          speaker_map_undefined: !speakerMap,
-          near_misses_undefined: !nearMisses,
+          enriched_segments: enriched.length,
+          identified: enriched.filter(s => s.speaker_confidence !== null).length,
+        }));
+      } else {
+        // Fallback: use Deepgram speakers if available
+        console.warn(JSON.stringify({
+          scope: "diarize_episode",
+          action: "enrichment_fallback",
+          episode_id,
+          reason: "no_pyannote_diarization",
         }));
 
-        // Reload diarization if needed
-        if (!diarization) {
-          const diarizationKey = PyannoteStorageKeys.getDiarizationKey(episode_id);
-          diarization = await storage.loadJson(diarizationKey);
-        }
-
-        // For other variables that we can't reload, use fallbacks
-        if (!enrichedTranscript) {
-          enrichedTranscript = []; // Empty fallback - could also reload from S3 if saved earlier
-        }
-        if (!speakerMap) {
-          speakerMap = {}; // Empty fallback
-        }
-        if (!nearMisses) {
-          nearMisses = []; // Empty fallback
-        }
+        // Create basic enriched segments from utterances
+        enriched = (transcript.utterances || []).map(utt => ({
+          start: utt.start,
+          end: utt.end,
+          text: utt.text,
+          speaker: utt.speaker || "Unknown",
+          diar_speaker: utt.speaker || "unknown",
+          speaker_confidence: null,
+          source: "deepgram_fallback" as const,
+        }));
       }
 
-      const enrichedKey = PyannoteStorageKeys.getEnrichedTranscriptKey(episode_id);
-      const auditKey = PyannoteStorageKeys.getAuditArtifactsKey(episode_id);
+      // Save enriched transcript to S3
+      const enrichedKey = keys.enriched(episode_id);
+      await saveJson(enrichedKey, enriched);
+
+      console.log(JSON.stringify({
+        scope: "diarize_episode",
+        action: "enrichment_saved",
+        episode_id,
+        enriched_key: enrichedKey,
+        segments: enriched.length,
+        identified: enriched.filter(s => s.speaker_confidence !== null).length,
+      }));
+
+      return minimalStepResult(episode_id,
+        { enriched: enrichedKey },
+        {
+          segments: enriched.length,
+          identified: enriched.filter(s => s.speaker_confidence !== null).length,
+          source: diar?.source || "deepgram_fallback",
+        }
+      );
+    });
+
+    // Step 4: Save audit artifacts - stateless pattern
+    const auditResult = await step.run("save-audit-artifacts", async () => {
+      // ALWAYS rehydrate all needed data from S3
+      const diar = await tryLoadJson<PyannoteDiarizationResponse>(keys.diarizationRaw(episode_id));
+      const spkMap = await tryLoadJson<SpeakerMap>(keys.speakerMap(episode_id)) ?? {};
+      const nearMisses = await tryLoadJson<NearMiss[]>(keys.nearMisses(episode_id)) ?? [];
+
+      console.log(JSON.stringify({
+        scope: "diarize_episode",
+        step: "save-audit-artifacts",
+        action: "reload_from_storage",
+        episode_id,
+        has_diarization: isDefined(diar),
+        speaker_map_size: Object.keys(spkMap).length,
+        near_misses_count: nearMisses.length,
+      }));
 
       // Create audit artifacts
-      const clusters = groupSegmentsBySpeaker(diarization.segments);
-      const clusterSummaries: ClusterSummary[] = Object.entries(clusters).map(([key, segs]) => ({
-        speakerKey: key,
-        duration: segs.reduce((acc, s) => acc + (s.end - s.start), 0),
-        segmentsCount: segs.length,
-        mappedTo: speakerMap[key]?.displayName || null,
-        confidence: speakerMap[key]?.confidence || null,
-      }));
+      let clusterSummaries: ClusterSummary[] = [];
+
+      if (diar && isDefined(diar.segments)) {
+        const clusters = groupSegmentsBySpeaker(diar.segments);
+        clusterSummaries = Object.entries(clusters).map(([key, segs]) => ({
+          speakerKey: key,
+          duration: segs.reduce((acc, s) => acc + (s.end - s.start), 0),
+          segmentsCount: segs.length,
+          mappedTo: spkMap[key]?.displayName || null,
+          confidence: spkMap[key]?.confidence || null,
+        }));
+      }
 
       const audit: PyannoteAuditArtifacts = {
         clusters: clusterSummaries,
-        totalSegments: diarization.segments.length,
-        source: diarization.source || 'pyannote',
+        totalSegments: diar?.segments?.length ?? 0,
+        source: diar?.source || 'deepgram_fallback',
         nearMisses,
       };
 
-      // Save both artifacts
-      await Promise.all([
-        storage.saveJson(enrichedKey, enrichedTranscript),
-        storage.saveJson(auditKey, audit),
-      ]);
+      // Save audit artifacts
+      const auditKey = `diarization/${episode_id}/audit.json`;
+      await saveJson(auditKey, audit);
 
       console.log(JSON.stringify({
         scope: "diarize_episode",
-        action: "artifacts_saved",
+        action: "audit_saved",
         episode_id,
-        enriched_key: enrichedKey,
         audit_key: auditKey,
+        clusters: clusterSummaries.length,
+        total_segments: audit.totalSegments,
       }));
 
-      return { enrichedPath: enrichedKey, auditPath: auditKey };
+      return minimalStepResult(episode_id,
+        { audit: auditKey },
+        {
+          clusters: clusterSummaries.length,
+          total_segments: audit.totalSegments,
+          source: audit.source,
+        }
+      );
     });
 
-    // Step 6: Emit completion event
+    // Step 5: Emit completion event
     await step.sendEvent("diarization-complete", {
       name: "episode.diarized.pyannote.completed",
       data: {
         episode_id,
-        s3_enriched_path: enrichedPath,
-        s3_audit_path: auditPath,
+        s3_enriched_path: keys.enriched(episode_id),
+        s3_audit_path: `diarization/${episode_id}/audit.json`,
       },
     });
 
     const processingTime = Date.now() - startTime;
 
-    // Log success
+    // Log final success
     console.log(JSON.stringify({
       scope: "diarize_episode",
       status: "success",
       episode_id,
       processing_time_ms: processingTime,
-      diarization_source: diarization.source,
-      identified_speakers: Object.keys(speakerMap).length,
-      near_misses: nearMisses.length,
-      enriched_segments: enrichmentResult.enriched_segments_count,
+      diarization_source: diarizationResult.stats.source,
+      identified_speakers: speakerResult.stats.identified,
+      near_misses: speakerResult.stats.near_misses,
+      enriched_segments: enrichmentResult.stats.segments,
     }));
 
-    // Final return - enforce safe size limit
-    const finalResult = {
-      status: "success",
-      episode_id,
-      diarization_source: diarization.source,
-      identified_speakers: Object.keys(speakerMap).length,
-      near_misses_count: nearMisses.length,
-      enriched_segments_count: enrichmentResult.enriched_segments_count,
-      processing_time_ms: processingTime,
-      s3_enriched_path: enrichedPath,
-      s3_audit_path: auditPath,
-    };
-
-    return safeStepOutput(finalResult, "diarize-episode-final-return");
+    // Final return - minimal metadata only
+    return minimalStepResult(episode_id,
+      {
+        enriched: keys.enriched(episode_id),
+        audit: `diarization/${episode_id}/audit.json`,
+      },
+      {
+        status: "success",
+        processing_time_ms: processingTime,
+        source: enrichmentResult.stats.source,
+        segments: enrichmentResult.stats.segments,
+        identified: enrichmentResult.stats.identified,
+      }
+    );
   }
 );
