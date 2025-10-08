@@ -13,23 +13,26 @@ const diarizationKey = await step.run("save-raw-diarization", async () => {
 });
 
 // Step 3b: Process with only metadata returned
-const identificationSummary = await step.run("cluster-speaker-identification", async () => {
-  // Load diarization from S3
-  const diarization = await storage.loadJson(diarizationKey);
+const identificationSummary = await step.run(
+  "cluster-speaker-identification",
+  async () => {
+    // Load diarization from S3
+    const diarization = await storage.loadJson(diarizationKey);
 
-  // ... do processing ...
+    // ... do processing ...
 
-  // Save results to S3
-  const speakerMapKey = `diarization/${episode_id}/speaker_map.json`;
-  await storage.saveJson(speakerMapKey, identifiedSpeakers);
+    // Save results to S3
+    const speakerMapKey = `diarization/${episode_id}/speaker_map.json`;
+    await storage.saveJson(speakerMapKey, identifiedSpeakers);
 
-  // Return only summary
-  return {
-    identified_count: Object.keys(identifiedSpeakers).length,
-    near_misses_count: missedMatches.length,
-    speaker_map_key: speakerMapKey,
-  };
-});
+    // Return only summary
+    return {
+      identified_count: Object.keys(identifiedSpeakers).length,
+      near_misses_count: missedMatches.length,
+      speaker_map_key: speakerMapKey,
+    };
+  },
+);
 ```
 
 ## Recommendations
@@ -56,6 +59,7 @@ await step.run("identify-speakers", async () => {
 ### 2. Preserve Existing Functionality
 
 Keep all the sophisticated features:
+
 - Cluster-level speaker identification
 - Deepgram fallback mechanism
 - Near-miss tracking
@@ -69,24 +73,30 @@ const enrichmentResult = await step.run("enrich-transcript", async () => {
     // Load necessary data from S3
     const [transcript, speakerMap] = await Promise.all([
       storage.loadJson(transcriptKey),
-      storage.loadJson(speakerMapKey)
+      storage.loadJson(speakerMapKey),
     ]);
 
-    const enriched = enrichTranscript(transcript.utterances, diarization, speakerMap);
+    const enriched = enrichTranscript(
+      transcript.utterances,
+      diarization,
+      speakerMap,
+    );
 
     // Save immediately to S3
-    const enrichedKey = PyannoteStorageKeys.getEnrichedTranscriptKey(episode_id);
+    const enrichedKey =
+      PyannoteStorageKeys.getEnrichedTranscriptKey(episode_id);
     await storage.saveJson(enrichedKey, enriched);
 
     // Return only metadata
     return {
       enriched_key: enrichedKey,
       segments_count: enriched.length,
-      identified_count: enriched.filter(s => s.speaker_confidence !== null).length,
+      identified_count: enriched.filter((s) => s.speaker_confidence !== null)
+        .length,
     };
   } catch (error) {
     // Handle S3 failures gracefully
-    console.error('Enrichment failed:', error);
+    console.error("Enrichment failed:", error);
     throw error;
   }
 });
@@ -97,20 +107,21 @@ const enrichmentResult = await step.run("enrich-transcript", async () => {
 Test the actual complexity:
 
 ```typescript
-describe('diarizeEpisode S3 optimization', () => {
-  it('should handle large diarization responses without exceeding step limits', async () => {
+describe("diarizeEpisode S3 optimization", () => {
+  it("should handle large diarization responses without exceeding step limits", async () => {
     // Create a large mock diarization (1000+ segments)
     const largeDiarization = {
       segments: Array.from({ length: 1500 }, (_, i) => ({
         start: i * 2,
         end: (i + 1) * 2,
-        speaker: `SPEAKER_${i % 10}`
-      }))
+        speaker: `SPEAKER_${i % 10}`,
+      })),
     };
 
     // Mock S3 operations
     const saveJsonMock = jest.fn();
-    const loadJsonMock = jest.fn()
+    const loadJsonMock = jest
+      .fn()
       .mockResolvedValueOnce(largeDiarization)
       .mockResolvedValueOnce(mockTranscript);
 
@@ -119,8 +130,8 @@ describe('diarizeEpisode S3 optimization', () => {
 
     // Verify S3 saves were called
     expect(saveJsonMock).toHaveBeenCalledWith(
-      expect.stringContaining('diarization/'),
-      expect.any(Object)
+      expect.stringContaining("diarization/"),
+      expect.any(Object),
     );
 
     // Verify only lightweight data returned

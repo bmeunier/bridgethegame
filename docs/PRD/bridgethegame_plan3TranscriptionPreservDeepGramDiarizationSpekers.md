@@ -1,11 +1,10 @@
-
-
 You are an AI coding partner. Review, rebuild, and retest the Step 3 implementation (Deepgram Transcription Service) with the following **addendum requirements**. This addendum extends the PRD and must be integrated without breaking the existing contract.
 
 ---
 
 ## Objective
-Maintain the canonical transcript structure (`speaker: null`) for pyannote integration, but also **preserve Deepgram’s diarization output** as a *sidecar field* for optional debugging, analysis, and confidence ensembles.
+
+Maintain the canonical transcript structure (`speaker: null`) for pyannote integration, but also **preserve Deepgram’s diarization output** as a _sidecar field_ for optional debugging, analysis, and confidence ensembles.
 
 ---
 
@@ -13,6 +12,7 @@ Maintain the canonical transcript structure (`speaker: null`) for pyannote integ
 
 1. **Sidecar Field**
    - Add a top-level optional block in the normalized transcript envelope:
+
    ```json
    "deepgram_speakers": [
      {"start": 0.0, "end": 12.5, "speaker": "dg-0"},
@@ -42,6 +42,7 @@ Maintain the canonical transcript structure (`speaker: null`) for pyannote integ
 ---
 
 ## Deliverables
+
 1. Update types (`TranscriptEnvelope`) to include optional `deepgram_speakers`.
 2. Update parsing logic to populate this field from Deepgram response if diarization data is available.
 3. Update test fixtures to assert the sidecar is saved.
@@ -50,6 +51,7 @@ Maintain the canonical transcript structure (`speaker: null`) for pyannote integ
 ---
 
 ## Reminder
+
 - The main pipeline remains unchanged for pyannote integration.
 - `deepgram_speakers` is for **debugging and future confidence vectors only**.
 - Document this behavior clearly in code comments and README.
@@ -57,4 +59,5 @@ Maintain the canonical transcript structure (`speaker: null`) for pyannote integ
 ---
 
 ## Action
+
 Review the existing implementation, rebuild where necessary, integrate this addendum, and retest everything to ensure consistency and correctness.

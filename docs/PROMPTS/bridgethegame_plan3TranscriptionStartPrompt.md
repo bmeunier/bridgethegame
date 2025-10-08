@@ -5,7 +5,9 @@ Treat this PRD as both the specification and the constraints.
 ---
 
 ## Objective
+
 Build an Inngest function `episode.ingest.transcribe` that:
+
 - Accepts `episode_id` and `audio_url`.
 - Sends the audio file to Deepgram with the defined parameters.
 - Normalizes the response into a JSON envelope.
@@ -15,6 +17,7 @@ Build an Inngest function `episode.ingest.transcribe` that:
 ---
 
 ## Deepgram API Parameters
+
 - `model="general"` (configurable)
 - `punctuate=true`
 - `utterances=true`
@@ -38,6 +41,7 @@ curl -X POST "https://api.deepgram.com/v1/listen" \
 ---
 
 ## Input Contract
+
 - `episode_id` (string)
 - `audio_url` (string)
 
@@ -63,6 +67,7 @@ curl -X POST "https://api.deepgram.com/v1/listen" \
 ```
 
 **Notes:**
+
 - Preserve word-level timestamps.
 - All `speaker` fields remain `null`.
 - `raw` stores the full Deepgram response.
@@ -70,12 +75,14 @@ curl -X POST "https://api.deepgram.com/v1/listen" \
 ---
 
 ## Storage & File Naming
+
 - `transcripts/{episode_id}/deepgram.json` → normalized envelope
 - `transcripts/{episode_id}/deepgram_raw.json` → raw Deepgram response
 
 ---
 
 ## Requirements
+
 - Idempotent: overwrite allowed, but log each run.
 - Error handling: retry Deepgram API failures with exponential backoff.
 - Handle large files and timeouts.
@@ -85,6 +92,7 @@ curl -X POST "https://api.deepgram.com/v1/listen" \
 ---
 
 ## Deliverables
+
 1. Inngest function implementation.
 2. Helper functions:
    - `fetch_audio(audio_url)`

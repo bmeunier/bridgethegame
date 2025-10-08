@@ -22,8 +22,8 @@ We already solved this problem for **Deepgram transcripts** using an **S3-first 
 
 Refactor `diarize_episode.ts` to use the S3-first pattern:
 
-- Save the full diarization JSON to S3.  
-- Only return lightweight metadata + S3 path through Inngest.  
+- Save the full diarization JSON to S3.
+- Only return lightweight metadata + S3 path through Inngest.
 - Preserve consistency with Deepgram’s solution.
 
 ---
@@ -42,10 +42,10 @@ Refactor `diarize_episode.ts` to use the S3-first pattern:
 
 ## Requirements for Diarization
 
-1. Input: `episode_id`, `audio_url`, `s3_transcript_path`.  
-2. Process: Call Pyannote API → get diarization segments.  
+1. Input: `episode_id`, `audio_url`, `s3_transcript_path`.
+2. Process: Call Pyannote API → get diarization segments.
 3. Save diarization result in S3:  
-   `s3://bucket/diarization/<episode_id>.json`  
+   `s3://bucket/diarization/<episode_id>.json`
 4. Output only lightweight payload:
 
 ```json
@@ -87,15 +87,18 @@ export const diarizeFn = inngest.createFunction(
 
     // 3. Collect stats
     const num_segments = diarization.segments.length;
-    const duration = diarization.segments.reduce((sum, s) => sum + (s.end - s.start), 0);
+    const duration = diarization.segments.reduce(
+      (sum, s) => sum + (s.end - s.start),
+      0,
+    );
 
     // 4. Return lightweight payload
     return {
       episode_id,
       s3_diarization_path,
-      stats: { num_segments, duration }
+      stats: { num_segments, duration },
     };
-  }
+  },
 );
 ```
 
@@ -103,9 +106,9 @@ export const diarizeFn = inngest.createFunction(
 
 ## Tests to Add
 
-- ✅ Mock diarization with 3 segments → confirm S3 write + correct stats.  
-- ✅ Fail Pyannote API → event includes `status: "failed"`.  
-- ✅ Large diarization (simulate 1000+ segments) → still only returns pointer + stats.  
+- ✅ Mock diarization with 3 segments → confirm S3 write + correct stats.
+- ✅ Fail Pyannote API → event includes `status: "failed"`.
+- ✅ Large diarization (simulate 1000+ segments) → still only returns pointer + stats.
 
 ---
 
@@ -134,7 +137,7 @@ import { diarizeFn } from "@/inngest/functions/diarize_episode";
 import diarizationFixture from "./diarization.fixture.json";
 
 vi.mock("@/utils/s3", () => ({
-  putS3Object: vi.fn()
+  putS3Object: vi.fn(),
 }));
 
 describe("diarizeFn", () => {
@@ -143,14 +146,17 @@ describe("diarizeFn", () => {
       data: {
         episode_id: "TEST123",
         audio_url: "http://example.com/audio.mp3",
-        s3_transcript_path: "s3://bucket/transcripts/TEST123.json"
-      }
+        s3_transcript_path: "s3://bucket/transcripts/TEST123.json",
+      },
     };
 
     // Mock diarize util to return fixture
     const diarize = vi.fn().mockResolvedValue(diarizationFixture);
 
-    const result = await diarizeFn.handler({ event, step: { run: (n,f) => f() } });
+    const result = await diarizeFn.handler({
+      event,
+      step: { run: (n, f) => f() },
+    });
 
     expect(putS3Object).toHaveBeenCalled();
     expect(result.stats.num_segments).toBe(3);
@@ -163,10 +169,9 @@ describe("diarizeFn", () => {
 
 ## Deliverable
 
-- Updated `diarize_episode.ts` using the S3-first pattern.  
-- Unit test added with fixture.  
+- Updated `diarize_episode.ts` using the S3-first pattern.
+- Unit test added with fixture.
 - Inngest output always lightweight, never fails size validation.
-
 
 # Step 3.6 Diarization: S3-First Refactor & Enrichment Plan
 
@@ -206,11 +211,13 @@ Refactor and extend the diarization pipeline to:
 ## Requirements
 
 ### Inputs
+
 - `episode_id`
 - `audio_url`
 - `s3_transcript_key` (S3 key, not URI)
 
 ### Outputs (Step Return)
+
 ```json
 {
   "episode_id": "XWPJS196C945",
@@ -221,15 +228,18 @@ Refactor and extend the diarization pipeline to:
   }
 }
 ```
-> *No S3 URIs. All paths are keys, using storage helpers.*
+
+> _No S3 URIs. All paths are keys, using storage helpers._
 
 ### S3 Artifacts
+
 - **Raw diarization:** `diarization/<episode_id>.json`
 - **Enriched output:** `diarization/<episode_id>.enriched.json`
 - **Audit artifacts:** e.g., `diarization/<episode_id>.audit.json`
 - **Error logs:** `diarization/<episode_id>.error.json`
 
 ### Enriched Output Schema
+
 ```json
 {
   "words": [
@@ -237,11 +247,12 @@ Refactor and extend the diarization pipeline to:
       "start": 1.23,
       "end": 1.56,
       "word": "hello",
-      "speaker": "A",                  // cluster-level label
-      "speaker_confidence": 0.98,      // confidence for assigned speaker
-      "diar_speaker": "SPEAKER_0",     // original diarization speaker label
-      "source": "pyannote",            // or "deepgram_fallback"
-      "alternatives": [                // (optional, for audit only)
+      "speaker": "A", // cluster-level label
+      "speaker_confidence": 0.98, // confidence for assigned speaker
+      "diar_speaker": "SPEAKER_0", // original diarization speaker label
+      "source": "pyannote", // or "deepgram_fallback"
+      "alternatives": [
+        // (optional, for audit only)
         { "speaker": "B", "confidence": 0.65 }
       ]
     }
@@ -253,26 +264,26 @@ Refactor and extend the diarization pipeline to:
 
 ## Flow Overview
 
-1. **Diarization step**  
+1. **Diarization step**
    - Input: `episode_id`, `audio_url`, `s3_transcript_key`
    - Call Pyannote API (or fallback to Deepgram)
    - Save raw diarization to S3 (`diarization/<episode_id>.json`)
    - Return only S3 key + stats
 
-2. **Speaker clustering & identification**  
+2. **Speaker clustering & identification**
    - Cluster diarization segments to canonical speakers (A, B, etc.)
    - For each cluster, select a representative clip (e.g., longest, highest-confidence segment)
    - (Optional: Save representative clips for audit)
    - Assign `speaker_confidence` at cluster level
 
-3. **Enrichment & alignment**  
+3. **Enrichment & alignment**
    - IoU-based alignment: For each transcript word, assign the diarization cluster with largest IoU
    - No multi-label words (for now)
    - Attach `speaker`, `speaker_confidence`, `diar_speaker`, `source`
    - Log near-miss alternatives in `alternatives` (audit only)
    - Save enriched output to S3 (`diarization/<episode_id>.enriched.json`)
 
-4. **Error handling**  
+4. **Error handling**
    - On API error: persist error JSON in S3, return status `"failed"`, include error in step return
    - On registry unavailable: persist error, allow for partial rerun
    - All step outputs remain lightweight
@@ -284,22 +295,27 @@ Refactor and extend the diarization pipeline to:
 ```ts
 import { inngest } from "@/inngest/client";
 import { putS3Object, getS3Key } from "@/utils/s3";
-import { diarize, clusterSpeakers, enrichTranscript } from "@/utils/diarization";
+import {
+  diarize,
+  clusterSpeakers,
+  enrichTranscript,
+} from "@/utils/diarization";
 
 export const diarizeFn = inngest.createFunction(
   { name: "Pyannote Diarization (S3-First)" },
   { event: "episode.transcribed.deepgram.completed" },
   async ({ event, step }) => {
     const { episode_id, audio_url, s3_transcript_key } = event.data;
-    let diarization, source = "pyannote";
+    let diarization,
+      source = "pyannote";
     try {
       diarization = await step.run("pyannote-diarize", async () =>
-        diarize(audio_url, process.env.PYANNOTE_API_KEY)
+        diarize(audio_url, process.env.PYANNOTE_API_KEY),
       );
     } catch (e) {
       // Fallback to Deepgram diarization
       diarization = await step.run("deepgram-diarize-fallback", async () =>
-        diarize(audio_url, null, { fallback: "deepgram" })
+        diarize(audio_url, null, { fallback: "deepgram" }),
       );
       source = "deepgram_fallback";
     }
@@ -309,29 +325,32 @@ export const diarizeFn = inngest.createFunction(
 
     // Cluster speakers at cluster-level
     const clusters = await step.run("cluster-speakers", async () =>
-      clusterSpeakers(diarization)
+      clusterSpeakers(diarization),
     );
     // Select representative clip per cluster, calculate confidences
     // ...
 
     // Enrich transcript via IoU alignment
     const enriched = await step.run("enrich-transcript", async () =>
-      enrichTranscript(s3_transcript_key, clusters, diarization, source)
+      enrichTranscript(s3_transcript_key, clusters, diarization, source),
     );
     const enriched_key = `diarization/${episode_id}.enriched.json`;
     await putS3Object(enriched_key, JSON.stringify(enriched));
 
     // Collect stats
     const num_segments = diarization.segments.length;
-    const duration = diarization.segments.reduce((sum, s) => sum + (s.end - s.start), 0);
+    const duration = diarization.segments.reduce(
+      (sum, s) => sum + (s.end - s.start),
+      0,
+    );
 
     return {
       episode_id,
       s3_diarization_key: diarization_key,
-      stats: { num_segments, duration }
+      stats: { num_segments, duration },
       // Errors, if any, can be included here as well
     };
-  }
+  },
 );
 ```
 
@@ -351,6 +370,7 @@ export const diarizeFn = inngest.createFunction(
 ## Mock Fixtures
 
 `diarization.fixture.json`
+
 ```json
 {
   "segments": [
@@ -362,6 +382,7 @@ export const diarizeFn = inngest.createFunction(
 ```
 
 `enriched.fixture.json`
+
 ```json
 {
   "words": [
@@ -390,7 +411,7 @@ import { diarizeFn } from "@/inngest/functions/diarize_episode";
 import diarizationFixture from "./diarization.fixture.json";
 
 vi.mock("@/utils/s3", () => ({
-  putS3Object: vi.fn()
+  putS3Object: vi.fn(),
 }));
 
 describe("diarizeFn", () => {
@@ -399,12 +420,15 @@ describe("diarizeFn", () => {
       data: {
         episode_id: "TEST123",
         audio_url: "http://example.com/audio.mp3",
-        s3_transcript_key: "transcripts/TEST123.json"
-      }
+        s3_transcript_key: "transcripts/TEST123.json",
+      },
     };
 
     const diarize = vi.fn().mockResolvedValue(diarizationFixture);
-    const result = await diarizeFn.handler({ event, step: { run: (n,f) => f() } });
+    const result = await diarizeFn.handler({
+      event,
+      step: { run: (n, f) => f() },
+    });
 
     expect(putS3Object).toHaveBeenCalled();
     expect(result.stats.num_segments).toBe(3);
@@ -443,6 +467,7 @@ describe("diarizeFn", () => {
 ---
 
 ## Implementation Notes
+
 - **Representative clip logic:** For each cluster, select the segment with highest confidence or longest duration as representative.
 - **Thresholds:** Speaker clustering and assignment thresholds should be configurable; defaults documented in code.
 - **Step/event names:** Use clear, versioned step names for traceability.
@@ -459,6 +484,7 @@ describe("diarizeFn", () => {
 ### Phase 1: Foundation & Storage Updates
 
 #### 1.1 Update Storage Utilities
+
 **File:** `src/lib/storage.ts`
 
 ```bash
@@ -467,6 +493,7 @@ git checkout -b feature/diarization-s3-refactor
 ```
 
 **Add new storage key helpers:**
+
 ```typescript
 // Add to existing storage.ts
 export class PyannoteStorageKeys {
@@ -489,9 +516,11 @@ export class PyannoteStorageKeys {
 ```
 
 #### 1.2 Extend Pyannote Types
+
 **File:** `src/types/pyannote.ts`
 
 **Add new interfaces:**
+
 ```typescript
 // Add to existing pyannote.ts
 export interface DiarizationRequestEvent {
@@ -510,7 +539,7 @@ export interface EnrichedTranscriptSegment {
   speaker: string | null;
   speaker_confidence: number | null;
   diar_speaker: string;
-  source: 'pyannote' | 'deepgram_fallback';
+  source: "pyannote" | "deepgram_fallback";
   alternatives?: Array<{
     speaker: string;
     confidence: number;
@@ -551,23 +580,32 @@ export interface ClusterSummary {
 ### Phase 2: Core Library Functions
 
 #### 2.1 Update Pyannote Library
+
 **File:** `src/lib/pyannote.ts`
 
 **Add cluster-level functions:**
+
 ```typescript
 // Add to existing pyannote.ts
-export function groupSegmentsBySpeaker(segments: DiarizationSegment[]): Record<string, DiarizationSegment[]> {
-  return segments.reduce((clusters, segment) => {
-    const speaker = segment.speaker;
-    if (!clusters[speaker]) {
-      clusters[speaker] = [];
-    }
-    clusters[speaker].push(segment);
-    return clusters;
-  }, {} as Record<string, DiarizationSegment[]>);
+export function groupSegmentsBySpeaker(
+  segments: DiarizationSegment[],
+): Record<string, DiarizationSegment[]> {
+  return segments.reduce(
+    (clusters, segment) => {
+      const speaker = segment.speaker;
+      if (!clusters[speaker]) {
+        clusters[speaker] = [];
+      }
+      clusters[speaker].push(segment);
+      return clusters;
+    },
+    {} as Record<string, DiarizationSegment[]>,
+  );
 }
 
-export function selectRepresentativeSegment(segments: DiarizationSegment[]): DiarizationSegment {
+export function selectRepresentativeSegment(
+  segments: DiarizationSegment[],
+): DiarizationSegment {
   // Select longest segment as representative
   return segments.reduce((longest, current) => {
     const currentDuration = current.end - current.start;
@@ -579,11 +617,11 @@ export function selectRepresentativeSegment(segments: DiarizationSegment[]): Dia
 export function enrichTranscript(
   utterances: any[],
   diarization: DiarizationResult,
-  speakerMap: SpeakerMap
+  speakerMap: SpeakerMap,
 ): EnrichedTranscriptSegment[] {
   // IoU-based alignment implementation
-  return utterances.flatMap(utterance =>
-    utterance.words.map(word => {
+  return utterances.flatMap((utterance) =>
+    utterance.words.map((word) => {
       const bestCluster = findBestClusterByIoU(word, diarization.segments);
       const speakerInfo = speakerMap[bestCluster?.speaker];
 
@@ -593,11 +631,11 @@ export function enrichTranscript(
         word: word.punctuated_word || word.word,
         speaker: speakerInfo?.displayName || null,
         speaker_confidence: speakerInfo?.confidence || null,
-        diar_speaker: bestCluster?.speaker || 'UNKNOWN',
-        source: diarization.source || 'pyannote',
-        alternatives: [] // Add near-miss logic here
+        diar_speaker: bestCluster?.speaker || "UNKNOWN",
+        source: diarization.source || "pyannote",
+        alternatives: [], // Add near-miss logic here
       };
-    })
+    }),
   );
 }
 
@@ -606,7 +644,7 @@ function findBestClusterByIoU(word: any, segments: DiarizationSegment[]) {
   return segments.reduce((best, segment) => {
     const iou = calculateIoU(
       { start: word.start, end: word.end },
-      { start: segment.start, end: segment.end }
+      { start: segment.start, end: segment.end },
     );
     if (!best || iou > best.iou) {
       return { segment, iou };
@@ -615,20 +653,30 @@ function findBestClusterByIoU(word: any, segments: DiarizationSegment[]) {
   }, null)?.segment;
 }
 
-function calculateIoU(a: {start: number, end: number}, b: {start: number, end: number}): number {
-  const intersection = Math.max(0, Math.min(a.end, b.end) - Math.max(a.start, b.start));
-  const union = (a.end - a.start) + (b.end - b.start) - intersection;
+function calculateIoU(
+  a: { start: number; end: number },
+  b: { start: number; end: number },
+): number {
+  const intersection = Math.max(
+    0,
+    Math.min(a.end, b.end) - Math.max(a.start, b.start),
+  );
+  const union = a.end - a.start + (b.end - b.start) - intersection;
   return union > 0 ? intersection / union : 0;
 }
 ```
 
 #### 2.2 Update Speaker Utils
+
 **File:** `src/lib/speaker-utils.ts`
 
 **Add fallback function:**
+
 ```typescript
 // Add to existing speaker-utils.ts
-export async function getDeepgramDiarizationFallback(episodeId: string): Promise<DiarizationResult> {
+export async function getDeepgramDiarizationFallback(
+  episodeId: string,
+): Promise<DiarizationResult> {
   // Implementation to extract diarization from existing Deepgram transcript
   const storage = getStorageClient();
   const transcriptKey = `transcripts/${episodeId}/deepgram.json`;
@@ -637,20 +685,22 @@ export async function getDeepgramDiarizationFallback(episodeId: string): Promise
     const transcript = await storage.loadJson(transcriptKey);
 
     // Convert Deepgram utterances to diarization format
-    const segments: DiarizationSegment[] = transcript.utterances.map((utterance, index) => ({
-      start: utterance.start,
-      end: utterance.end,
-      speaker: `SPEAKER_${utterance.speaker || index}`,
-      confidence: 0.8 // Default confidence for Deepgram fallback
-    }));
+    const segments: DiarizationSegment[] = transcript.utterances.map(
+      (utterance, index) => ({
+        start: utterance.start,
+        end: utterance.end,
+        speaker: `SPEAKER_${utterance.speaker || index}`,
+        confidence: 0.8, // Default confidence for Deepgram fallback
+      }),
+    );
 
     return {
       segments,
-      source: 'deepgram_fallback'
+      source: "deepgram_fallback",
     };
   } catch (error) {
-    console.error('Failed to get Deepgram diarization fallback:', error);
-    throw new Error('No fallback diarization available');
+    console.error("Failed to get Deepgram diarization fallback:", error);
+    throw new Error("No fallback diarization available");
   }
 }
 ```
@@ -658,12 +708,14 @@ export async function getDeepgramDiarizationFallback(episodeId: string): Promise
 ### Phase 3: Function Implementation (Alternative to Current Fix)
 
 #### 3.1 Backup Current Implementation
+
 ```bash
 # Create backup of current implementation
 cp src/inngest/functions/diarize_episode.ts src/inngest/functions/diarize_episode.ts.backup-v2
 ```
 
 #### 3.2 Key Principle: S3-First Pattern
+
 The current fix (returning only metadata in step outputs) already solves the immediate problem. The S3-first refactor would be a more comprehensive solution that:
 
 - Saves ALL large data (raw diarization, enriched transcript, audit artifacts) to S3 immediately
@@ -673,6 +725,7 @@ The current fix (returning only metadata in step outputs) already solves the imm
 ### Phase 4: Testing & Validation Commands
 
 #### 4.1 Build and Validate Current Implementation
+
 ```bash
 npm run build
 npm run typecheck
@@ -680,6 +733,7 @@ npm run lint
 ```
 
 #### 4.2 Test Current Fix
+
 ```bash
 # Test with the 6.7-hour episode
 npm run trigger WRQZ7196C943 backfill true
@@ -689,6 +743,7 @@ open http://localhost:8288/runs
 ```
 
 #### 4.3 Verify S3 Artifacts (Current Structure)
+
 ```bash
 # Check existing S3 structure
 aws s3 ls s3://bridgethegame-audio-123/transcripts/ --recursive
@@ -700,6 +755,7 @@ aws s3 ls s3://bridgethegame-audio-123/voiceprints/ --recursive
 Instead of a full rewrite, implement S3-first pattern incrementally:
 
 #### 5.1 Add New Storage Functions (Safe)
+
 ```typescript
 // Add to src/lib/storage.ts without breaking existing code
 export class PyannoteStorageKeys {
@@ -711,26 +767,27 @@ export class PyannoteStorageKeys {
 ```
 
 #### 5.2 Add New Utility Functions (Safe)
+
 ```typescript
 // Add to src/lib/pyannote.ts or src/lib/speaker-utils.ts
 export async function saveDiarizationArtifacts(
   episodeId: string,
   diarization: any,
   enriched: any,
-  audit: any
-): Promise<{diarizationKey: string, enrichedKey: string, auditKey: string}> {
+  audit: any,
+): Promise<{ diarizationKey: string; enrichedKey: string; auditKey: string }> {
   const storage = getStorageClient();
 
   const keys = {
     diarizationKey: PyannoteStorageKeys.getDiarizationKey(episodeId),
     enrichedKey: PyannoteStorageKeys.getEnrichedTranscriptKey(episodeId),
-    auditKey: PyannoteStorageKeys.getAuditArtifactsKey(episodeId)
+    auditKey: PyannoteStorageKeys.getAuditArtifactsKey(episodeId),
   };
 
   await Promise.all([
     storage.saveJson(keys.diarizationKey, diarization),
     storage.saveJson(keys.enrichedKey, enriched),
-    storage.saveJson(keys.auditKey, audit)
+    storage.saveJson(keys.auditKey, audit),
   ]);
 
   return keys;
@@ -738,6 +795,7 @@ export async function saveDiarizationArtifacts(
 ```
 
 #### 5.3 Test New Functions (Safe)
+
 ```typescript
 // Add unit tests for new functions without affecting existing pipeline
 ```
@@ -745,15 +803,17 @@ export async function saveDiarizationArtifacts(
 ### Phase 6: Production Migration Strategy
 
 #### 6.1 Gradual Migration
+
 1. **Week 1:** Add new storage functions and test them
 2. **Week 2:** Update one step at a time to use S3-first pattern
 3. **Week 3:** Validate each step independently
 4. **Week 4:** Full integration testing
 
 #### 6.2 Feature Flags
+
 ```typescript
 // Add feature flag to switch between implementations
-const USE_S3_FIRST_PATTERN = process.env.DIARIZATION_S3_FIRST === 'true';
+const USE_S3_FIRST_PATTERN = process.env.DIARIZATION_S3_FIRST === "true";
 
 if (USE_S3_FIRST_PATTERN) {
   // New S3-first implementation
@@ -765,6 +825,7 @@ if (USE_S3_FIRST_PATTERN) {
 ### Phase 7: Monitoring & Rollback Plan
 
 #### 7.1 Success Metrics
+
 - [ ] Step output size errors eliminated
 - [ ] All S3 artifacts created in expected locations
 - [ ] Function execution time remains acceptable
@@ -772,6 +833,7 @@ if (USE_S3_FIRST_PATTERN) {
 - [ ] Error handling working properly
 
 #### 7.2 Rollback Commands
+
 ```bash
 # Quick rollback if issues occur
 cp src/inngest/functions/diarize_episode.ts.backup-v2 src/inngest/functions/diarize_episode.ts
@@ -782,10 +844,12 @@ npm run build
 ## Implementation Priority
 
 **Immediate (Current Status):**
+
 - ✅ **Current fix works** - step output size issue resolved
 - ✅ **Pipeline operational** - can process 6.7-hour episodes
 
 **Next Phase (Optional Enhancement):**
+
 1. Add storage utilities and types (non-breaking)
 2. Add S3-first helper functions (non-breaking)
 3. Test new functions in isolation

@@ -1,12 +1,15 @@
 # Bridge The Game - Project Documentation
 
 ## Project Overview
+
 **Bridge The Game** is a serverless pipeline that bridges Podbean (podcast hosting) to Weaviate (semantic search engine) for The Game podcast. It enriches podcast episodes with AI-powered transcription, speaker diarization, and semantic indexing to create a searchable knowledge base.
 
 **Domain**: bridgethegame.felo5.com
 
 ## Purpose
+
 Transform raw podcast episodes into structured, searchable knowledge by:
+
 - Automatically ingesting new episodes from Podbean
 - Enriching with accurate transcripts and speaker identification
 - Indexing into Weaviate for semantic and keyword hybrid search
@@ -15,6 +18,7 @@ Transform raw podcast episodes into structured, searchable knowledge by:
 ## Architecture
 
 ### Core Pipeline Flow
+
 1. **Trigger**: New episode published on Podbean (manual or cron-based)
 2. **Orchestration**: Inngest workflow engine coordinates all API calls
 3. **Enrichment**:
@@ -25,6 +29,7 @@ Transform raw podcast episodes into structured, searchable knowledge by:
 5. **Indexing**: Push to Weaviate Cloud for automatic embeddings and hybrid search
 
 ### Tech Stack
+
 - **Orchestrator**: Inngest (event-driven workflow engine)
 - **Search Engine**: Weaviate Cloud (semantic + hybrid search, built-in embeddings)
 - **APIs**:
@@ -33,6 +38,7 @@ Transform raw podcast episodes into structured, searchable knowledge by:
   - Pyannote API (speaker diarization)
 
 ### Key Features
+
 - Serverless architecture (no servers to maintain)
 - Automatic episode ingestion
 - Speaker-aware transcripts with precise timestamps
@@ -43,6 +49,7 @@ Transform raw podcast episodes into structured, searchable knowledge by:
 ## Development Guidelines
 
 ### Project Structure
+
 ```
 bridgethegame/
 ├── CLAUDE.md           # This file
@@ -59,6 +66,7 @@ bridgethegame/
 ```
 
 ### Environment Variables
+
 ```
 # Podbean API
 PODBEAN_CLIENT_ID=
@@ -80,6 +88,7 @@ INNGEST_SIGNING_KEY=
 ```
 
 ### API Resources
+
 - [Podbean API Documentation](https://developers.podbean.com/podbean-api-docs/)
 - [Deepgram Documentation](https://developers.deepgram.com/)
 - [Pyannote Documentation](https://docs.pyannote.ai/)
@@ -90,6 +99,7 @@ INNGEST_SIGNING_KEY=
 ## Commands
 
 ### Development
+
 ```bash
 # Install dependencies
 npm install
@@ -108,6 +118,7 @@ npm run format
 ```
 
 ### Deployment
+
 ```bash
 # Deploy to production
 npm run deploy
@@ -117,25 +128,30 @@ npm test
 ```
 
 ## Testing Strategy
+
 - Unit tests for individual API integrations
 - Integration tests for the full pipeline
 - Mock API responses for development
 - Test with sample podcast episodes
 
 ## Error Handling
+
 - Retry logic for API failures
 - Dead letter queue for failed processing
 - Detailed logging for debugging
 - Graceful degradation when services unavailable
 
 ## Security Considerations
+
 - All API keys stored as environment variables
 - Secure communication with all external APIs
 - No sensitive data stored locally
 - Audit logging for all processing activities
 
 ## Previous Iterations
+
 This project evolved from earlier experiments:
+
 - **talkthegame.felo5.com**: Conversational transcript interaction
 - **askthegame.felo5.com**: Early Q&A system with embeddings
 - **readthegame.felo5.com**: Structured episode reading experience
@@ -143,7 +159,9 @@ This project evolved from earlier experiments:
 The current iteration focuses on lean, serverless architecture with direct Podbean-to-Weaviate bridging.
 
 ## Contact
+
 Project maintainer: Benoit Meunier
 
 ## License
+
 Private project - All rights reserved

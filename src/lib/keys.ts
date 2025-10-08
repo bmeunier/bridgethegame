@@ -14,5 +14,6 @@ export const keys = {
   transcript: (id: string) => `transcripts/${id}/deepgram.json`,
 
   // Error tracking
-  error: (id: string, timestamp: number) => `diarization/${id}/errors/${timestamp}.json`,
+  error: (id: string, timestamp: number) =>
+    `diarization/${id}/errors/${timestamp}.json`,
 } as const;

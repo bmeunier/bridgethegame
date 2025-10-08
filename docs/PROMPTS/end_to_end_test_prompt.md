@@ -8,11 +8,11 @@ This file provides Claude Code with instructions and a code skeleton for creatin
 
 Claude, add a new script `scripts/test_pipeline_end_to_end.ts` that:
 
-1. Imports the existing trigger logic (like `trigger_fresh_pipeline.ts`).  
-2. Starts a pipeline run for a known valid Podbean episode ID.  
-3. Polls the Inngest Dev Server API (`http://localhost:8288/api/runs/:id`) every few seconds.  
-4. Logs status until the run is either `Completed` or `Failed`.  
-5. Exits with code 0 on success, 1 on failure.  
+1. Imports the existing trigger logic (like `trigger_fresh_pipeline.ts`).
+2. Starts a pipeline run for a known valid Podbean episode ID.
+3. Polls the Inngest Dev Server API (`http://localhost:8288/api/runs/:id`) every few seconds.
+4. Logs status until the run is either `Completed` or `Failed`.
+5. Exits with code 0 on success, 1 on failure.
 
 This script must prove the entire pipeline (ingest → transcribe → diarize) completes end-to-end, not just log step outputs.
 
@@ -34,7 +34,8 @@ async function main() {
   const runUrl = `http://localhost:8288/api/runs/${eventId}`;
 
   let status = "PENDING";
-  for (let i = 0; i < 60; i++) { // poll for up to 5 min
+  for (let i = 0; i < 60; i++) {
+    // poll for up to 5 min
     const res = await fetch(runUrl);
     const json = await res.json();
     status = json.status;
@@ -48,14 +49,14 @@ async function main() {
       console.error("❌ Pipeline failed");
       process.exit(1);
     }
-    await new Promise(r => setTimeout(r, 5000));
+    await new Promise((r) => setTimeout(r, 5000));
   }
 
   console.error("⏰ Timeout waiting for pipeline to finish");
   process.exit(1);
 }
 
-main().catch(err => {
+main().catch((err) => {
   console.error(err);
   process.exit(1);
 });
@@ -65,9 +66,9 @@ main().catch(err => {
 
 ## Deliverable
 
-- Add `scripts/test_pipeline_end_to_end.ts` to the repo.  
-- Ensure it can be run via:  
+- Add `scripts/test_pipeline_end_to_end.ts` to the repo.
+- Ensure it can be run via:
   ```bash
   npx tsx scripts/test_pipeline_end_to_end.ts WRQZ7196C943
-  ```  
+  ```
 - Confirm it reports `✅ Pipeline completed successfully!` when diarization works fully end-to-end.

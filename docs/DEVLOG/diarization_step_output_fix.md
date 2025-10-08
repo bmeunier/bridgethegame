@@ -9,12 +9,14 @@
 The `diarizeEpisode` Inngest function was consistently failing with "step output size is greater than the limit" errors when processing long episodes (6+ hours). Despite previous attempts at S3-first patterns, we were still returning large JSON objects from `step.run()` calls.
 
 ### Root Cause
+
 - Inngest has undocumented step output size limits (~32KB)
 - Large diarization results (1,000+ segments) were being returned from steps
 - Enriched transcripts (2,000+ utterances) were exceeding size limits
 - Speaker maps and near-miss arrays were adding to the payload
 
 ### Specific Failures
+
 - **Episode WRQZ7196C943** (6.7 hours): 2,847 utterances, 1,000+ diarization segments
 - **Step failures**: `pyannote-diarization`, `cluster-speaker-identification`, `enrich-transcript`
 
@@ -34,7 +36,7 @@ export function safeStepOutput<T>(data: T, stepName: string): T {
   if (sizeBytes > MAX_STEP_OUTPUT_SIZE) {
     throw new Error(
       `Step "${stepName}" output too large: ${sizeMB}MB exceeds ${limitKB}KB limit. ` +
-      `Store large data in S3 and return only metadata.`
+        `Store large data in S3 and return only metadata.`,
     );
   }
   return data;
@@ -44,6 +46,7 @@ export function safeStepOutput<T>(data: T, stepName: string): T {
 ### 2. Modified Diarization Function (`src/inngest/functions/diarize_episode.ts`)
 
 **Key Changes:**
+
 - **Closure Variables**: Store large data outside step contexts
 - **Immediate S3 Saves**: Save large objects to S3 before returning from steps
 - **Metadata-Only Returns**: Steps return only `{ episode_id, storage_key, counts }`
@@ -62,11 +65,14 @@ const registryResult = await step.run("load-speaker-registry", async () => {
   const speakerRegistry = await getSpeakerRegistry(podcast_id);
   registry = speakerRegistry; // Store in closure
 
-  return safeStepOutput({
-    episode_id,
-    speakers_count: Object.keys(speakerRegistry).length,
-    speakers: Object.keys(speakerRegistry).slice(0, 5), // Only first 5 names
-  }, "load-speaker-registry");
+  return safeStepOutput(
+    {
+      episode_id,
+      speakers_count: Object.keys(speakerRegistry).length,
+      speakers: Object.keys(speakerRegistry).slice(0, 5), // Only first 5 names
+    },
+    "load-speaker-registry",
+  );
 });
 
 // Step 2: Diarization with immediate S3 save
@@ -85,7 +91,7 @@ const diarizationResult = await step.run("pyannote-diarization", async () => {
       source: "pyannote",
       segments_count: result.segments.length,
     }),
-    "pyannote-diarization"
+    "pyannote-diarization",
   );
 });
 ```
@@ -110,19 +116,23 @@ Comprehensive test suite validates:
 ### Key Test Cases
 
 ```typescript
-test('validates diarization step output with 1,000 segments stays under limit', () => {
+test("validates diarization step output with 1,000 segments stays under limit", () => {
   const diarizationMetadata = {
-    episode_id: 'stress-test-episode',
-    storage_key: 'transcripts/stress-test-episode/diarization.json',
-    source: 'pyannote',
+    episode_id: "stress-test-episode",
+    storage_key: "transcripts/stress-test-episode/diarization.json",
+    source: "pyannote",
     segments_count: 1000,
     total_duration: 24000.5, // 6.7 hours
     processing_time_ms: 45000,
   };
 
-  expect(() => safeStepOutput(diarizationMetadata, 'pyannote-diarization')).not.toThrow();
+  expect(() =>
+    safeStepOutput(diarizationMetadata, "pyannote-diarization"),
+  ).not.toThrow();
 
-  const sizeBytes = new TextEncoder().encode(JSON.stringify(diarizationMetadata)).length;
+  const sizeBytes = new TextEncoder().encode(
+    JSON.stringify(diarizationMetadata),
+  ).length;
   expect(sizeBytes).toBeLessThan(1024); // Well under 1KB
 });
 ```
@@ -130,6 +140,7 @@ test('validates diarization step output with 1,000 segments stays under limit', 
 ## Results
 
 ### Before Fix
+
 ```
 ❌ Episode WRQZ7196C943 (6.7 hours)
    └── step output size is greater than the limit
@@ -138,6 +149,7 @@ test('validates diarization step output with 1,000 segments stays under limit', 
 ```
 
 ### After Fix
+
 ```
 ✅ All steps output <1KB metadata only
 ✅ Large data stored in S3 immediately

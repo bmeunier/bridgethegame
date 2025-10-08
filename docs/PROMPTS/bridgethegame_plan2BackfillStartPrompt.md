@@ -3,6 +3,7 @@ You are my coding partner for the Bridge The Game project. Execute **Plan 2: Bac
 docs/PRD/bridgethegame_plan2Backfill.md
 
 ## Project context
+
 Goal for this step: a tiny but real loop  
 **Trigger → Inngest → Podbean API → Log success in the Inngest dashboard**
 
@@ -13,6 +14,7 @@ Follow that plan exactly. Use it as the source of truth.
 ---
 
 ## Deliverables for this step
+
 1. **Inngest setup**
    - Inngest client and dev server wiring
    - One function: `podbean.episode.ingest.requested`
@@ -38,6 +40,7 @@ Follow that plan exactly. Use it as the source of truth.
 ---
 
 ## Constraints and standards
+
 - Keep code in TypeScript
 - Do not introduce a frontend right now
 - Use environment variables for secrets
@@ -49,6 +52,7 @@ Follow that plan exactly. Use it as the source of truth.
 ---
 
 ## Environment variables to use
+
 Create `.env.example` with these keys. Do not put real values in the repo.
 
 ```
@@ -65,10 +69,12 @@ PODBEAN_API_BASE=https://api.podbean.com  # or leave as default in code
 ---
 
 ## Event contract
+
 Use one event name everywhere:  
 `podbean.episode.ingest.requested`
 
 Data fields to accept now:
+
 ```
 episode_id: string
 mode: "backfill" | "manual" | "realtime"  # default backfill is fine
@@ -76,11 +82,13 @@ force: boolean                            # default false
 requested_by: string | null
 priority: "normal" | "high"               # default normal
 ```
+
 Validate `episode_id` with a sane pattern. If it fails, do not send the event.
 
 ---
 
 ## Function behavior
+
 - On receive, log input as structured JSON
 - OAuth: try access token, if expired use refresh token, then retry once
 - Fetch episode metadata by `episode_id`
@@ -93,6 +101,7 @@ Validate `episode_id` with a sane pattern. If it fails, do not send the event.
 ---
 
 ## Files to create or update
+
 - `src/inngest/client.ts` for client setup
 - `src/inngest/functions/ingest_episode.ts` for the function
 - `scripts/send_event.ts` for CLI trigger
@@ -103,12 +112,15 @@ Validate `episode_id` with a sane pattern. If it fails, do not send the event.
 ---
 
 ## Logging format examples
+
 On success:
+
 ```
 { "scope":"ingest_episode", "status":"success", "episode_id":"ABC123", "source":"podbean", "mode":"backfill" }
 ```
 
 On failure:
+
 ```
 { "scope":"ingest_episode", "status":"error", "episode_id":"ABC123", "error_type":"auth" , "message":"token expired" }
 ```
@@ -116,6 +128,7 @@ On failure:
 ---
 
 ## Retry policy
+
 - Configure function retries to 3 attempts with exponential backoff
 - For 429 or 5xx, rely on retry policy
 - For 401 with expired token, perform one refresh cycle then retry the call once in the same run
@@ -123,12 +136,14 @@ On failure:
 ---
 
 ## Rate limiting
+
 - Add a small delay utility for backfill mode to avoid spikes
 - Document how to tune it
 
 ---
 
 ## Test plan
+
 - Show the exact `pnpm` or `npm` commands to run the dev server and the CLI trigger
 - Provide two example episode IDs in a config file or comments
 - After running, show me the logs that prove success and failure paths
@@ -136,12 +151,14 @@ On failure:
 ---
 
 ## Reporting format
+
 As you work, narrate each step like this:
-1. What you are about to change  
-2. The diff or files created  
-3. Why this is the right move  
-4. How to run it locally to test  
-5. Results and next step  
+
+1. What you are about to change
+2. The diff or files created
+3. Why this is the right move
+4. How to run it locally to test
+5. Results and next step
 
 If something blocks you, say what is missing. Offer a safe fallback or a mock so we can keep moving.
 

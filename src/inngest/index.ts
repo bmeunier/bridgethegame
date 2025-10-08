@@ -11,23 +11,35 @@ dotenv.config();
 const app = express();
 
 // Add logging middleware
-app.use((req, res, next) => {
+app.use((req, _res, next) => {
   console.log(`${new Date().toISOString()} ${req.method} ${req.path}`);
   next();
 });
 
 // Add body parsing middleware with configurable limits for very long podcast episodes
 // 3+ hour episodes can generate 50mb+ transcript JSON files
-const BODY_LIMIT = process.env.EXPRESS_BODY_LIMIT || '100mb';
+const BODY_LIMIT = process.env.EXPRESS_BODY_LIMIT || "100mb";
 app.use(express.json({ limit: BODY_LIMIT }));
 app.use(express.raw({ type: "application/json", limit: BODY_LIMIT }));
 app.use(express.urlencoded({ extended: true, limit: BODY_LIMIT }));
 
 // Debug function registration
-console.log('Registering functions:');
-console.log('- ingestEpisode:', typeof ingestEpisode, ingestEpisode.id || 'no id');
-console.log('- transcribeEpisode:', typeof transcribeEpisode, transcribeEpisode.id || 'no id');
-console.log('- diarizeEpisode:', typeof diarizeEpisode, diarizeEpisode.id || 'no id');
+console.log("Registering functions:");
+console.log(
+  "- ingestEpisode:",
+  typeof ingestEpisode,
+  ingestEpisode.id || "no id",
+);
+console.log(
+  "- transcribeEpisode:",
+  typeof transcribeEpisode,
+  transcribeEpisode.id || "no id",
+);
+console.log(
+  "- diarizeEpisode:",
+  typeof diarizeEpisode,
+  diarizeEpisode.id || "no id",
+);
 
 const functions = [ingestEpisode, transcribeEpisode, diarizeEpisode];
 console.log(`Total functions to register: ${functions.length}`);
@@ -38,7 +50,7 @@ app.use(
   serve({
     client: inngest,
     functions: functions,
-  })
+  }),
 );
 
 const PORT = process.env.PORT || 3000;

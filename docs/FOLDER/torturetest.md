@@ -9,6 +9,7 @@
 ## 🎯 TORTURE TEST SPECIFICATIONS
 
 ### Simulated Episode: "TORTURE-TEST-12HOUR-MARATHON"
+
 - **Duration**: 12 hours (43,200 seconds)
 - **Diarization Segments**: 6,000+ segments (avg 7.2 seconds each)
 - **Utterances**: 8,000+ utterances (avg 5.4 seconds each)
@@ -17,12 +18,14 @@
 - **Audio Size**: ~1.5GB MP3 file
 
 ### Expected Data Sizes (BEFORE our fix - these would BREAK Inngest)
+
 - **Raw Diarization JSON**: ~2.5MB (6,000 segments × ~400 bytes each)
 - **Enriched Transcript JSON**: ~8MB (8,000 utterances × ~1KB each)
 - **Speaker Map JSON**: ~15KB (complex speaker mappings)
 - **Near-Miss Array**: ~8KB (lots of close matches)
 
 ### Step Output Size Limits (our fix must enforce)
+
 - **Inngest Actual Limit**: ~32KB (undocumented)
 - **Our Conservative Limit**: 4KB per step output
 - **Safety Margin**: 8x smaller than actual limit
@@ -65,11 +68,13 @@ curl -X POST http://localhost:3000/api/inngest \
 ## 🚀 TORTURE TEST RESULTS - BULLETPROOF CONFIRMED! 🎉
 
 ### ✅ Test 1: 12-Hour Marathon Episode (6,000 segments)
+
 **Status**: PASSED ✅
 **Date**: 2025-09-23
 **Command**: `npm test tests/torture-test.test.ts`
 
 **Results**:
+
 - ✅ Registry metadata: **249 bytes** (0.2KB)
 - ✅ Diarization metadata: **318 bytes** (0.3KB)
 - ✅ Speaker identification: **345 bytes** (0.3KB)
@@ -80,18 +85,22 @@ curl -X POST http://localhost:3000/api/inngest \
 **ALL STEP OUTPUTS UNDER 1KB LIMIT** 🎯
 
 ### ✅ Test 2: Massive Data Rejection (7.1MB payload)
+
 **Status**: CORRECTLY REJECTED ✅
 **Payload Size**: **7,406,048 bytes (7.1MB)**
 **Result**: Properly threw "output too large" error
 **Confirms**: Our fix correctly blocks dangerous payloads
 
 ### ✅ Test 3: EXTREME 24-Hour Ultra Marathon (12,000 segments)
+
 **Status**: PASSED ✅
 **Metadata Size**: **575 bytes** (0.6KB)
 **Result**: Even 24-hour episodes stay under limits
 
 ### ✅ Test 4: Final Boss - Multiple Scenarios
+
 **Status**: ALL PASSED ✅
+
 - 6-hour episode (3,000 segments): **199 bytes**
 - 12-hour marathon (6,000 segments): **217 bytes**
 - 18-hour endurance (9,000 segments): **219 bytes**
@@ -102,6 +111,7 @@ curl -X POST http://localhost:3000/api/inngest \
 **The torture test results prove our fix can handle ANY podcast episode:**
 
 ### What We Tested ✅
+
 - [x] 12-hour marathon episodes (6,000+ segments)
 - [x] 24-hour ultra episodes (12,000+ segments)
 - [x] Complex speaker scenarios (12+ speakers)
@@ -111,12 +121,14 @@ curl -X POST http://localhost:3000/api/inngest \
 - [x] S3-first pattern working correctly
 
 ### Performance Results 🚀
+
 - **All step outputs**: < 1KB (well under 4KB limit)
 - **Largest metadata**: 575 bytes (24-hour episode)
 - **Safety margin**: 8x smaller than Inngest's ~32KB limit
 - **Test execution**: 1.363 seconds for full torture suite
 
 ### Real-World Impact 💪
+
 - **6.7-hour episode WRQZ7196C943**: Would now work flawlessly
 - **No episode too long**: Even 24-hour marathons safe
 - **Zero step output errors**: Guaranteed for any episode
@@ -127,12 +139,14 @@ curl -X POST http://localhost:3000/api/inngest \
 ## 🎖️ TORTURE TEST HALL OF FAME
 
 **Episodes that would now work flawlessly:**
+
 - ✅ Episode WRQZ7196C943 (6.7 hours, 2,847 utterances)
 - ✅ Simulated 12-hour marathon (6,000 segments)
 - ✅ Simulated 24-hour ultra (12,000 segments)
 - ✅ Any future episode regardless of length
 
 **What would still break (correctly):**
+
 - ❌ Malformed step outputs returning full JSON (7MB+)
 - ❌ Functions not using safeStepOutput helper
 - ❌ Attempts to bypass S3-first pattern
@@ -142,7 +156,8 @@ curl -X POST http://localhost:3000/api/inngest \
 ## 🚀 EXECUTION COMPLETED - FIX VALIDATED
 
 ### The Challenge Was Met
-> *"I'll believe you only when you'll run another docs/FOLDER/torturetest.md ... ;)"*
+
+> _"I'll believe you only when you'll run another docs/FOLDER/torturetest.md ... ;)"_
 
 **CHALLENGE ACCEPTED ✅**
 **CHALLENGE COMPLETED ✅**

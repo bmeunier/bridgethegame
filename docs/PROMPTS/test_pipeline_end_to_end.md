@@ -1,3 +1,10 @@
+This script triggers the full pipeline (ingest → transcribe → diarize → enrich → index) and
+monitors it until completion. It also validates that the `enriched.json` file in S3 is
+non-empty at the end.
+
+Save this as `scripts/test_pipeline_end_to_end.ts`.
+
+```ts
 #!/usr/bin/env npx tsx
 
 /**
@@ -52,47 +59,15 @@ async function triggerEpisode(episodeId: string): Promise<string> {
 }
 
 async function pollRunStatus(eventId: string): Promise<boolean> {
-  const endpoints = [
-    "http://localhost:8288/v0/runs?limit=50",
-    "http://localhost:8288/api/v1/runs?limit=50",
-  ];
-
-  let chosenEndpoint: string | null = null;
-
-  // Try each endpoint until we find one that returns valid JSON
-  for (const url of endpoints) {
-    try {
-      const response = await fetch(url);
-      if (response.ok) {
-        const text = await response.text();
-        try {
-          JSON.parse(text);
-          chosenEndpoint = url;
-          console.log(`🌐 Using Inngest runs endpoint: ${url}`);
-          break;
-        } catch {
-          console.warn(`⚠️ Endpoint ${url} returned non-JSON, skipping`);
-        }
-      } else {
-        console.warn(`⚠️ Endpoint ${url} returned status ${response.status}`);
-      }
-    } catch (err) {
-      console.warn(`⚠️ Could not reach ${url}:`, err);
-    }
-  }
-
-  if (!chosenEndpoint) {
-    console.error(
-      "❌ No valid Inngest runs endpoint found. Is the dev server running?",
-    );
-    return false;
-  }
+  const runsUrl = `http://localhost:8288/v0/runs`;
+  console.log(`
+🔍 Monitoring Inngest runs for event ID: ${eventId}`);
 
   let status = "Running";
   const maxAttempts = 60; // 5 minutes max
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     try {
-      const response = await fetch(chosenEndpoint);
+      const response = await fetch(`${runsUrl}?limit=50`);
       if (!response.ok) {
         console.warn(`⚠️ API request failed (${response.status}). Retrying...`);
         await new Promise((resolve) => setTimeout(resolve, 5000));
@@ -206,3 +181,4 @@ if (require.main === module) {
     process.exit(1);
   });
 }
+```

@@ -73,7 +73,8 @@ export class PodbeanClient {
 Review the following issue in my code and propose a fix:
 
 **Context:**
-- My XML feed for *The Game* contains `<guid>` values like:
+
+- My XML feed for _The Game_ contains `<guid>` values like:
   ```
   d891a427-17ae-438a-882b-da16ddff0212
   ```
@@ -86,6 +87,7 @@ Review the following issue in my code and propose a fix:
 
 **Task:**
 Update `PodbeanClient.getEpisode` so it works reliably:
+
 1. Detect if the provided ID looks like a UUID (RSS GUID) vs. a Podbean API ID.
 2. If it’s a GUID (UUID-like string), resolve it first by fetching all recent episodes from `/v1/episodes` and matching against `guid`.
 3. Once the correct `episode_id` is found, call the API again to retrieve the full episode details.
@@ -93,6 +95,7 @@ Update `PodbeanClient.getEpisode` so it works reliably:
 5. Add clear error handling if no match is found.
 
 **Deliverable:**
+
 - Suggest a concrete implementation (in Node/TypeScript) for the `getEpisode` function.
-- Make it efficient (don’t always fetch *all* episodes if avoidable).
+- Make it efficient (don’t always fetch _all_ episodes if avoidable).
 - Keep the public `getEpisode(id)` interface unchanged.

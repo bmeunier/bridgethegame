@@ -5,8 +5,8 @@
  * Usage: npx tsx scripts/clear_episode_cache.ts <episode_id>
  */
 
-import 'dotenv/config';
-import { getStorageClient } from '../src/lib/storage';
+import "dotenv/config";
+import { getStorageClient } from "../src/lib/storage";
 
 async function clearEpisodeCache(episodeId: string) {
   console.log(`🧹 Clearing all cached data for episode: ${episodeId}`);
@@ -56,8 +56,12 @@ async function clearEpisodeCache(episodeId: string) {
 
   // Also list and delete any other files in the transcripts/episodeId/ directory
   try {
-    console.log(`🔍 Scanning for additional files in transcripts/${episodeId}/...`);
-    const transcriptFiles = await storage.listObjects(`transcripts/${episodeId}/`);
+    console.log(
+      `🔍 Scanning for additional files in transcripts/${episodeId}/...`,
+    );
+    const transcriptFiles = await storage.listObjects(
+      `transcripts/${episodeId}/`,
+    );
 
     for (const file of transcriptFiles) {
       if (!keysToDelete.includes(file)) {
@@ -89,7 +93,9 @@ async function clearEpisodeCache(episodeId: string) {
   console.log(`\n✅ Cache clearing complete for episode ${episodeId}`);
   console.log(`   📊 Files deleted: ${deletedCount}`);
   console.log(`   📊 Files skipped (not found): ${skippedCount}`);
-  console.log(`\n🚀 Episode ${episodeId} is now ready for fresh pipeline processing!`);
+  console.log(
+    `\n🚀 Episode ${episodeId} is now ready for fresh pipeline processing!`,
+  );
 }
 
 // Main execution
@@ -97,20 +103,24 @@ async function main() {
   const episodeId = process.argv[2];
 
   if (!episodeId) {
-    console.error('❌ Usage: npx tsx scripts/clear_episode_cache.ts <episode_id>');
-    console.error('   Example: npx tsx scripts/clear_episode_cache.ts WRQZ7196C943');
+    console.error(
+      "❌ Usage: npx tsx scripts/clear_episode_cache.ts <episode_id>",
+    );
+    console.error(
+      "   Example: npx tsx scripts/clear_episode_cache.ts WRQZ7196C943",
+    );
     process.exit(1);
   }
 
   if (episodeId.length < 5) {
-    console.error('❌ Episode ID seems too short. Please double-check the ID.');
+    console.error("❌ Episode ID seems too short. Please double-check the ID.");
     process.exit(1);
   }
 
   try {
     await clearEpisodeCache(episodeId);
   } catch (error) {
-    console.error('❌ Failed to clear episode cache:', error);
+    console.error("❌ Failed to clear episode cache:", error);
     process.exit(1);
   }
 }

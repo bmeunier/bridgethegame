@@ -39,18 +39,26 @@ async function main() {
   // Validate episode ID format
   if (!PodbeanClient.validateEpisodeId(episodeId)) {
     console.error(`Error: Invalid episode ID format: ${episodeId}`);
-    console.log("Episode ID should be alphanumeric (with optional hyphens/underscores)");
+    console.log(
+      "Episode ID should be alphanumeric (with optional hyphens/underscores)",
+    );
     process.exit(1);
   }
 
   console.log("Sending event to Inngest:");
-  console.log(JSON.stringify({
-    episode_id: episodeId,
-    mode,
-    force,
-    requested_by: "cli",
-    priority: "normal",
-  }, null, 2));
+  console.log(
+    JSON.stringify(
+      {
+        episode_id: episodeId,
+        mode,
+        force,
+        requested_by: "cli",
+        priority: "normal",
+      },
+      null,
+      2,
+    ),
+  );
 
   try {
     // Send event to Inngest
@@ -67,7 +75,9 @@ async function main() {
 
     console.log("\nEvent sent successfully!");
     console.log("Event ID:", result.ids[0]);
-    console.log("\nCheck Inngest Dev Server at http://localhost:8288 to see the function run");
+    console.log(
+      "\nCheck Inngest Dev Server at http://localhost:8288 to see the function run",
+    );
   } catch (error) {
     console.error("Failed to send event:", error);
     console.error("\nMake sure:");

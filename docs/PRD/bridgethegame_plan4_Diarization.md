@@ -3,29 +3,31 @@ title: Step 4: Pyannote Diarization & Speaker Platform
 status: draft
 ---
 
-# Step 4: Pyannote Diarization & Speaker Platform  
+# Step 4: Pyannote Diarization & Speaker Platform
+
 Implementation Plan (Reusable Across Podcasts)
 
 ## Purpose
+
 Integrate **Pyannote Precision-2** and **Speaker Platform** to generate speaker-attributed transcripts.  
 Primary outcome: correctly identify **known registered speakers** (e.g., Alex Hormozi in AskTheGame).  
-Guests remain generic until registered.  
+Guests remain generic until registered.
 
 ---
 
 ## Architecture Overview
 
-1. **Trigger**: `episode.transcribed.deepgram.completed` (Deepgram transcript + audio URL ready).  
-2. **Diarization**: Call Pyannote Precision-2 → get raw speaker turns.  
-3. **Speaker Identification**: Perform **cluster-level identification** by grouping diarized segments by speaker key, selecting a representative audio clip per cluster, identifying against all registry entries, assigning the best match with confidence, and propagating the label to all segments in that cluster.  
-4. **Merge**: Combine with Deepgram transcript into canonical JSON using overlap-based (IoU) matching between transcript words and diarization segments.  
-5. **Output**: Save enriched transcript to S3 → emit `episode.diarized.pyannote.completed`.  
+1. **Trigger**: `episode.transcribed.deepgram.completed` (Deepgram transcript + audio URL ready).
+2. **Diarization**: Call Pyannote Precision-2 → get raw speaker turns.
+3. **Speaker Identification**: Perform **cluster-level identification** by grouping diarized segments by speaker key, selecting a representative audio clip per cluster, identifying against all registry entries, assigning the best match with confidence, and propagating the label to all segments in that cluster.
+4. **Merge**: Combine with Deepgram transcript into canonical JSON using overlap-based (IoU) matching between transcript words and diarization segments.
+5. **Output**: Save enriched transcript to S3 → emit `episode.diarized.pyannote.completed`.
 
 ---
 
 ## Speaker Registry (Future-Proofing)
 
-A simple JSON config in S3 or DB:  
+A simple JSON config in S3 or DB:
 
 ```json
 {
@@ -40,7 +42,7 @@ A simple JSON config in S3 or DB:
     "HOST_A": {
       "displayName": "Jane Doe",
       "referenceId": "ref_janedoe_456",
-      "threshold": 0.80
+      "threshold": 0.8
     },
     "HOST_B": {
       "displayName": "John Smith",
@@ -51,14 +53,14 @@ A simple JSON config in S3 or DB:
 }
 ```
 
-The function loads the registry based on `podcast_id`. No hard-coding.  
+The function loads the registry based on `podcast_id`. No hard-coding.
 
 ---
 
 ## API Integration
 
-- **Diarization**: `POST /v1/diarize` → `{ segments: [{ start, end, speaker }] }`  
-- **Speaker Identify**: `POST /v1/identify` with `{ audio_url, reference_id }` → `{ speaker, confidence }`  
+- **Diarization**: `POST /v1/diarize` → `{ segments: [{ start, end, speaker }] }`
+- **Speaker Identify**: `POST /v1/identify` with `{ audio_url, reference_id }` → `{ speaker, confidence }`
 
 ---
 
@@ -68,13 +70,21 @@ The function loads the registry based on `podcast_id`. No hard-coding.
 import fetch from "node-fetch";
 const API_BASE = "https://api.pyannote.ai/v1";
 
-export async function diarize(audioUrl: string, apiKey: string, maxSpeakers = 3) {
+export async function diarize(
+  audioUrl: string,
+  apiKey: string,
+  maxSpeakers = 3,
+) {
   const res = await fetch(`${API_BASE}/diarize`, {
     method: "POST",
-    headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+    },
     body: JSON.stringify({ audio_url: audioUrl, max_speakers: maxSpeakers }),
   });
-  if (!res.ok) throw new Error(`Diarization failed: ${res.status} ${await res.text()}`);
+  if (!res.ok)
+    throw new Error(`Diarization failed: ${res.status} ${await res.text()}`);
   return res.json();
 }
 
@@ -82,13 +92,21 @@ export async function diarize(audioUrl: string, apiKey: string, maxSpeakers = 3)
  * Identify speaker for a given audio segment against a reference ID.
  * Returns detailed result for cluster-level processing.
  */
-export async function identifySpeaker(segmentUrl: string, apiKey: string, refId: string) {
+export async function identifySpeaker(
+  segmentUrl: string,
+  apiKey: string,
+  refId: string,
+) {
   const res = await fetch(`${API_BASE}/identify`, {
     method: "POST",
-    headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+    },
     body: JSON.stringify({ audio_url: segmentUrl, reference_id: refId }),
   });
-  if (!res.ok) throw new Error(`Identify failed: ${res.status} ${await res.text()}`);
+  if (!res.ok)
+    throw new Error(`Identify failed: ${res.status} ${await res.text()}`);
   const data = await res.json();
   return {
     matches: data.speaker === refId,
@@ -155,7 +173,8 @@ export const diarizeFn = inngest.createFunction(
   { name: "Pyannote Diarization" },
   { event: "episode.transcribed.deepgram.completed" },
   async ({ event, step }) => {
-    const { episode_id, podcast_id, audio_url, s3_transcript_path } = event.data;
+    const { episode_id, podcast_id, audio_url, s3_transcript_path } =
+      event.data;
 
     const registry = await getSpeakerRegistry(podcast_id);
     const transcript = await getS3Object(s3_transcript_path);
@@ -186,14 +205,25 @@ export const diarizeFn = inngest.createFunction(
       const repSegment = segments[Math.floor(segments.length / 2)]; // pick middle segment as representative
 
       // Assume getAudioClipUrl extracts clip URL for segment from full audio
-      const clipUrl = await getAudioClipUrl(audio_url, repSegment.start, repSegment.end);
+      const clipUrl = await getAudioClipUrl(
+        audio_url,
+        repSegment.start,
+        repSegment.end,
+      );
 
       let bestMatch = null;
       let bestConfidence = 0;
 
       for (const [refId, info] of Object.entries(registry)) {
-        const result = await identifySpeaker(clipUrl, process.env.PYANNOTE_API_KEY, info.referenceId);
-        if (result.confidence > bestConfidence && result.confidence >= info.threshold) {
+        const result = await identifySpeaker(
+          clipUrl,
+          process.env.PYANNOTE_API_KEY,
+          info.referenceId,
+        );
+        if (
+          result.confidence > bestConfidence &&
+          result.confidence >= info.threshold
+        ) {
           bestConfidence = result.confidence;
           bestMatch = info;
           bestMatch.referenceId = info.referenceId;
@@ -202,10 +232,16 @@ export const diarizeFn = inngest.createFunction(
 
       if (bestMatch) {
         if (bestConfidence >= bestMatch.threshold) {
-          speakerMap[clusterKey] = { displayName: bestMatch.displayName, confidence: bestConfidence, referenceId: bestMatch.referenceId };
+          speakerMap[clusterKey] = {
+            displayName: bestMatch.displayName,
+            confidence: bestConfidence,
+            referenceId: bestMatch.referenceId,
+          };
         } else {
           // Log near-miss for debugging/tuning thresholds
-          console.warn(`Near-miss for cluster ${clusterKey}: confidence ${bestConfidence} below threshold ${bestMatch.threshold} for referenceId ${bestMatch.referenceId}`);
+          console.warn(
+            `Near-miss for cluster ${clusterKey}: confidence ${bestConfidence} below threshold ${bestMatch.threshold} for referenceId ${bestMatch.referenceId}`,
+          );
           nearMisses.push({
             clusterKey,
             confidence: bestConfidence,
@@ -238,9 +274,13 @@ export const diarizeFn = inngest.createFunction(
     await putS3Object(auditPath, JSON.stringify(audit));
 
     await step.sendEvent("episode.diarized.pyannote.completed", {
-      data: { episode_id, s3_enriched_path: enrichedPath, s3_audit_path: auditPath },
+      data: {
+        episode_id,
+        s3_enriched_path: enrichedPath,
+        s3_audit_path: auditPath,
+      },
     });
-  }
+  },
 );
 ```
 
@@ -258,9 +298,7 @@ export const diarizeFn = inngest.createFunction(
     "speaker_confidence": 0.92,
     "text": "Welcome back to The Game podcast...",
     "source": "pyannote",
-    "alternatives": [
-      { "speaker": "Guest_1", "confidence": 0.15 }
-    ]
+    "alternatives": [{ "speaker": "Guest_1", "confidence": 0.15 }]
   },
   {
     "start": 4.5,
@@ -280,19 +318,20 @@ export const diarizeFn = inngest.createFunction(
 
 If Pyannote diarization fails or returns errors, the system falls back to Deepgram diarization sidecar data.  
 Segments are labeled accordingly with `"source": "deepgram_fallback"` in the enriched transcript to preserve traceability.  
-This ensures robustness and continuity of speaker attribution in production.  
+This ensures robustness and continuity of speaker attribution in production.
 
 ---
 
 ## Audit Artifacts
 
-An audit JSON file (`pyannote_audit.json`) is saved per episode containing:  
-- Cluster-level summaries with total duration, number of segments, mapped speaker labels, and confidence scores.  
-- Total diarization segments count.  
-- Diarization source indicator (`pyannote` or `deepgram_fallback`).  
-- Near-miss cases where confidence scores fell below thresholds are recorded for debugging and tuning speaker identification thresholds.  
+An audit JSON file (`pyannote_audit.json`) is saved per episode containing:
 
-These artifacts support debugging, quality assurance, and performance analytics.  
+- Cluster-level summaries with total duration, number of segments, mapped speaker labels, and confidence scores.
+- Total diarization segments count.
+- Diarization source indicator (`pyannote` or `deepgram_fallback`).
+- Near-miss cases where confidence scores fell below thresholds are recorded for debugging and tuning speaker identification thresholds.
+
+These artifacts support debugging, quality assurance, and performance analytics.
 
 ---
 
@@ -321,7 +360,11 @@ export const diarizationEmpty = { segments: [] };
 ```typescript
 import { describe, it, expect, vi } from "vitest";
 import { enrichTranscript, diarize, identifySpeaker } from "../pyannote";
-import { transcriptBasic, diarizationAligned, diarizationEmpty } from "./pyannote.fixtures";
+import {
+  transcriptBasic,
+  diarizationAligned,
+  diarizationEmpty,
+} from "./pyannote.fixtures";
 
 global.fetch = vi.fn();
 
@@ -334,7 +377,7 @@ describe("pyannote utils", () => {
 
   it("labels Unknown when diarization empty", () => {
     const enriched = enrichTranscript(transcriptBasic, diarizationEmpty);
-    expect(enriched.every(e => e.speaker === "Unknown")).toBe(true);
+    expect(enriched.every((e) => e.speaker === "Unknown")).toBe(true);
   });
 
   it("identifySpeaker returns detailed match info", async () => {
@@ -353,23 +396,24 @@ describe("pyannote utils", () => {
 
 ## Integration Test Checklist (First Live Run)
 
-1. Run one full episode through Deepgram + Pyannote.  
-2. Check S3 enriched JSON:  
-   - Are segments aligned with timestamps using overlap?  
-   - Are registered speakers labeled correctly with confidence?  
-   - Is fallback logic exercised if Pyannote fails?  
-3. Inspect confidence scores for false positives.  
-4. Confirm `episode.diarized.pyannote.completed` event emitted with correct payload including audit path.  
-5. Push into Weaviate → test semantic search on "What did [HOST] say about X?".  
+1. Run one full episode through Deepgram + Pyannote.
+2. Check S3 enriched JSON:
+   - Are segments aligned with timestamps using overlap?
+   - Are registered speakers labeled correctly with confidence?
+   - Is fallback logic exercised if Pyannote fails?
+3. Inspect confidence scores for false positives.
+4. Confirm `episode.diarized.pyannote.completed` event emitted with correct payload including audit path.
+5. Push into Weaviate → test semantic search on "What did [HOST] say about X?".
 
 ---
 
 ## Success Criteria
-- Registered speakers consistently labeled (≥95% accuracy) with confidence preserved.  
-- Guests labeled generically but stable within an episode.  
-- Pipeline modular enough to support multiple podcasts by changing registry, not code.  
-- Fallback to Deepgram diarization works seamlessly when needed.  
-- Audit artifacts generated and stored for QA and analytics.  
+
+- Registered speakers consistently labeled (≥95% accuracy) with confidence preserved.
+- Guests labeled generically but stable within an episode.
+- Pipeline modular enough to support multiple podcasts by changing registry, not code.
+- Fallback to Deepgram diarization works seamlessly when needed.
+- Audit artifacts generated and stored for QA and analytics.
 
 ---
 

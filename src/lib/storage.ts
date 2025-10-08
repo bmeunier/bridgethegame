@@ -9,30 +9,31 @@ import {
   HeadObjectCommand,
   ListObjectsV2Command,
   DeleteObjectCommand,
-} from '@aws-sdk/client-s3';
-import { Readable } from 'stream';
+} from "@aws-sdk/client-s3";
+import { Readable } from "stream";
 
 export class StorageClient {
   private s3: S3Client;
   private bucketName: string;
 
   constructor(bucketName?: string, region?: string) {
-    this.bucketName = bucketName || process.env.S3_BUCKET_NAME || '';
-    const awsRegion = region || process.env.AWS_REGION || 'us-east-1';
+    this.bucketName = bucketName || process.env.S3_BUCKET_NAME || "";
+    const awsRegion = region || process.env.AWS_REGION || "us-east-1";
 
     if (!this.bucketName) {
-      throw new Error('S3_BUCKET_NAME is required');
+      throw new Error("S3_BUCKET_NAME is required");
     }
 
     // Initialize S3 client
     this.s3 = new S3Client({
       region: awsRegion,
-      credentials: process.env.AWS_ACCESS_KEY_ID && process.env.AWS_SECRET_ACCESS_KEY
-        ? {
-            accessKeyId: process.env.AWS_ACCESS_KEY_ID,
-            secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
-          }
-        : undefined, // Use default credentials chain (EC2, ECS, Lambda roles, etc.)
+      credentials:
+        process.env.AWS_ACCESS_KEY_ID && process.env.AWS_SECRET_ACCESS_KEY
+          ? {
+              accessKeyId: process.env.AWS_ACCESS_KEY_ID,
+              secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
+            }
+          : undefined, // Use default credentials chain (EC2, ECS, Lambda roles, etc.)
     });
   }
 
@@ -43,37 +44,43 @@ export class StorageClient {
     const jsonString = JSON.stringify(data, null, 2);
 
     try {
-      console.log(JSON.stringify({
-        scope: 'storage_client',
-        action: 'save_json_start',
-        bucket: this.bucketName,
-        key,
-        size: jsonString.length,
-      }));
+      console.log(
+        JSON.stringify({
+          scope: "storage_client",
+          action: "save_json_start",
+          bucket: this.bucketName,
+          key,
+          size: jsonString.length,
+        }),
+      );
 
       await this.s3.send(
         new PutObjectCommand({
           Bucket: this.bucketName,
           Key: key,
           Body: jsonString,
-          ContentType: 'application/json',
-        })
+          ContentType: "application/json",
+        }),
       );
 
-      console.log(JSON.stringify({
-        scope: 'storage_client',
-        action: 'save_json_success',
-        bucket: this.bucketName,
-        key,
-      }));
+      console.log(
+        JSON.stringify({
+          scope: "storage_client",
+          action: "save_json_success",
+          bucket: this.bucketName,
+          key,
+        }),
+      );
     } catch (error) {
-      console.error(JSON.stringify({
-        scope: 'storage_client',
-        action: 'save_json_error',
-        bucket: this.bucketName,
-        key,
-        error: error instanceof Error ? error.message : error,
-      }));
+      console.error(
+        JSON.stringify({
+          scope: "storage_client",
+          action: "save_json_error",
+          bucket: this.bucketName,
+          key,
+          error: error instanceof Error ? error.message : error,
+        }),
+      );
       throw error;
     }
   }
@@ -83,44 +90,50 @@ export class StorageClient {
    */
   async loadJson<T = any>(key: string): Promise<T> {
     try {
-      console.log(JSON.stringify({
-        scope: 'storage_client',
-        action: 'load_json_start',
-        bucket: this.bucketName,
-        key,
-      }));
+      console.log(
+        JSON.stringify({
+          scope: "storage_client",
+          action: "load_json_start",
+          bucket: this.bucketName,
+          key,
+        }),
+      );
 
       const response = await this.s3.send(
         new GetObjectCommand({
           Bucket: this.bucketName,
           Key: key,
-        })
+        }),
       );
 
       if (!response.Body) {
-        throw new Error('Empty response body');
+        throw new Error("Empty response body");
       }
 
       const bodyString = await this.streamToString(response.Body as Readable);
       const data = JSON.parse(bodyString) as T;
 
-      console.log(JSON.stringify({
-        scope: 'storage_client',
-        action: 'load_json_success',
-        bucket: this.bucketName,
-        key,
-        size: bodyString.length,
-      }));
+      console.log(
+        JSON.stringify({
+          scope: "storage_client",
+          action: "load_json_success",
+          bucket: this.bucketName,
+          key,
+          size: bodyString.length,
+        }),
+      );
 
       return data;
     } catch (error) {
-      console.error(JSON.stringify({
-        scope: 'storage_client',
-        action: 'load_json_error',
-        bucket: this.bucketName,
-        key,
-        error: error instanceof Error ? error.message : error,
-      }));
+      console.error(
+        JSON.stringify({
+          scope: "storage_client",
+          action: "load_json_error",
+          bucket: this.bucketName,
+          key,
+          error: error instanceof Error ? error.message : error,
+        }),
+      );
       throw error;
     }
   }
@@ -134,11 +147,14 @@ export class StorageClient {
         new HeadObjectCommand({
           Bucket: this.bucketName,
           Key: key,
-        })
+        }),
       );
       return true;
     } catch (error: any) {
-      if (error.name === 'NotFound' || error.$metadata?.httpStatusCode === 404) {
+      if (
+        error.name === "NotFound" ||
+        error.$metadata?.httpStatusCode === 404
+      ) {
         return false;
       }
       throw error;
@@ -150,41 +166,48 @@ export class StorageClient {
    */
   async listObjects(prefix: string, maxKeys: number = 1000): Promise<string[]> {
     try {
-      console.log(JSON.stringify({
-        scope: 'storage_client',
-        action: 'list_objects_start',
-        bucket: this.bucketName,
-        prefix,
-        max_keys: maxKeys,
-      }));
+      console.log(
+        JSON.stringify({
+          scope: "storage_client",
+          action: "list_objects_start",
+          bucket: this.bucketName,
+          prefix,
+          max_keys: maxKeys,
+        }),
+      );
 
       const response = await this.s3.send(
         new ListObjectsV2Command({
           Bucket: this.bucketName,
           Prefix: prefix,
           MaxKeys: maxKeys,
-        })
+        }),
       );
 
-      const keys = response.Contents?.map(item => item.Key!).filter(Boolean) || [];
+      const keys =
+        response.Contents?.map((item) => item.Key!).filter(Boolean) || [];
 
-      console.log(JSON.stringify({
-        scope: 'storage_client',
-        action: 'list_objects_success',
-        bucket: this.bucketName,
-        prefix,
-        count: keys.length,
-      }));
+      console.log(
+        JSON.stringify({
+          scope: "storage_client",
+          action: "list_objects_success",
+          bucket: this.bucketName,
+          prefix,
+          count: keys.length,
+        }),
+      );
 
       return keys;
     } catch (error) {
-      console.error(JSON.stringify({
-        scope: 'storage_client',
-        action: 'list_objects_error',
-        bucket: this.bucketName,
-        prefix,
-        error: error instanceof Error ? error.message : error,
-      }));
+      console.error(
+        JSON.stringify({
+          scope: "storage_client",
+          action: "list_objects_error",
+          bucket: this.bucketName,
+          prefix,
+          error: error instanceof Error ? error.message : error,
+        }),
+      );
       throw error;
     }
   }
@@ -192,16 +215,22 @@ export class StorageClient {
   /**
    * Save audio buffer to S3
    */
-  async saveAudio(key: string, buffer: Buffer, contentType: string): Promise<void> {
+  async saveAudio(
+    key: string,
+    buffer: Buffer,
+    contentType: string,
+  ): Promise<void> {
     try {
-      console.log(JSON.stringify({
-        scope: 'storage_client',
-        action: 'save_audio_start',
-        bucket: this.bucketName,
-        key,
-        size: buffer.length,
-        content_type: contentType,
-      }));
+      console.log(
+        JSON.stringify({
+          scope: "storage_client",
+          action: "save_audio_start",
+          bucket: this.bucketName,
+          key,
+          size: buffer.length,
+          content_type: contentType,
+        }),
+      );
 
       await this.s3.send(
         new PutObjectCommand({
@@ -209,23 +238,27 @@ export class StorageClient {
           Key: key,
           Body: buffer,
           ContentType: contentType,
-        })
+        }),
       );
 
-      console.log(JSON.stringify({
-        scope: 'storage_client',
-        action: 'save_audio_success',
-        bucket: this.bucketName,
-        key,
-      }));
+      console.log(
+        JSON.stringify({
+          scope: "storage_client",
+          action: "save_audio_success",
+          bucket: this.bucketName,
+          key,
+        }),
+      );
     } catch (error) {
-      console.error(JSON.stringify({
-        scope: 'storage_client',
-        action: 'save_audio_error',
-        bucket: this.bucketName,
-        key,
-        error: error instanceof Error ? error.message : error,
-      }));
+      console.error(
+        JSON.stringify({
+          scope: "storage_client",
+          action: "save_audio_error",
+          bucket: this.bucketName,
+          key,
+          error: error instanceof Error ? error.message : error,
+        }),
+      );
       throw error;
     }
   }
@@ -235,22 +268,24 @@ export class StorageClient {
    */
   async getAudio(key: string): Promise<Buffer> {
     try {
-      console.log(JSON.stringify({
-        scope: 'storage_client',
-        action: 'get_audio_start',
-        bucket: this.bucketName,
-        key,
-      }));
+      console.log(
+        JSON.stringify({
+          scope: "storage_client",
+          action: "get_audio_start",
+          bucket: this.bucketName,
+          key,
+        }),
+      );
 
       const response = await this.s3.send(
         new GetObjectCommand({
           Bucket: this.bucketName,
           Key: key,
-        })
+        }),
       );
 
       if (!response.Body) {
-        throw new Error('Empty response body');
+        throw new Error("Empty response body");
       }
 
       const chunks: Buffer[] = [];
@@ -259,23 +294,27 @@ export class StorageClient {
       }
       const buffer = Buffer.concat(chunks);
 
-      console.log(JSON.stringify({
-        scope: 'storage_client',
-        action: 'get_audio_success',
-        bucket: this.bucketName,
-        key,
-        size: buffer.length,
-      }));
+      console.log(
+        JSON.stringify({
+          scope: "storage_client",
+          action: "get_audio_success",
+          bucket: this.bucketName,
+          key,
+          size: buffer.length,
+        }),
+      );
 
       return buffer;
     } catch (error) {
-      console.error(JSON.stringify({
-        scope: 'storage_client',
-        action: 'get_audio_error',
-        bucket: this.bucketName,
-        key,
-        error: error instanceof Error ? error.message : error,
-      }));
+      console.error(
+        JSON.stringify({
+          scope: "storage_client",
+          action: "get_audio_error",
+          bucket: this.bucketName,
+          key,
+          error: error instanceof Error ? error.message : error,
+        }),
+      );
       throw error;
     }
   }
@@ -288,7 +327,7 @@ export class StorageClient {
     for await (const chunk of stream) {
       chunks.push(Buffer.from(chunk));
     }
-    return Buffer.concat(chunks).toString('utf-8');
+    return Buffer.concat(chunks).toString("utf-8");
   }
 
   /**
@@ -296,34 +335,40 @@ export class StorageClient {
    */
   async deleteObject(key: string): Promise<void> {
     try {
-      console.log(JSON.stringify({
-        scope: 'storage_client',
-        action: 'delete_start',
-        bucket: this.bucketName,
-        key,
-      }));
+      console.log(
+        JSON.stringify({
+          scope: "storage_client",
+          action: "delete_start",
+          bucket: this.bucketName,
+          key,
+        }),
+      );
 
       await this.s3.send(
         new DeleteObjectCommand({
           Bucket: this.bucketName,
           Key: key,
-        })
+        }),
       );
 
-      console.log(JSON.stringify({
-        scope: 'storage_client',
-        action: 'delete_success',
-        bucket: this.bucketName,
-        key,
-      }));
+      console.log(
+        JSON.stringify({
+          scope: "storage_client",
+          action: "delete_success",
+          bucket: this.bucketName,
+          key,
+        }),
+      );
     } catch (error) {
-      console.error(JSON.stringify({
-        scope: 'storage_client',
-        action: 'delete_error',
-        bucket: this.bucketName,
-        key,
-        error: error instanceof Error ? error.message : error,
-      }));
+      console.error(
+        JSON.stringify({
+          scope: "storage_client",
+          action: "delete_error",
+          bucket: this.bucketName,
+          key,
+          error: error instanceof Error ? error.message : error,
+        }),
+      );
       throw error;
     }
   }
@@ -331,7 +376,10 @@ export class StorageClient {
   /**
    * Generate S3 key for transcript files
    */
-  static getTranscriptKey(episodeId: string, type: 'deepgram' | 'deepgram_raw' | 'pyannote' | 'final'): string {
+  static getTranscriptKey(
+    episodeId: string,
+    type: "deepgram" | "deepgram_raw" | "pyannote" | "final",
+  ): string {
     return `transcripts/${episodeId}/${type}.json`;
   }
 
@@ -346,8 +394,8 @@ export class StorageClient {
    * Generate a pre-signed URL for temporary public access
    */
   async getSignedUrl(key: string, expiresIn: number = 3600): Promise<string> {
-    const { GetObjectCommand } = await import('@aws-sdk/client-s3');
-    const { getSignedUrl } = await import('@aws-sdk/s3-request-presigner');
+    const { GetObjectCommand } = await import("@aws-sdk/client-s3");
+    const { getSignedUrl } = await import("@aws-sdk/s3-request-presigner");
 
     const command = new GetObjectCommand({
       Bucket: this.bucketName,
@@ -357,23 +405,27 @@ export class StorageClient {
     try {
       const signedUrl = await getSignedUrl(this.s3, command, { expiresIn });
 
-      console.log(JSON.stringify({
-        scope: 'storage_client',
-        action: 'signed_url_generated',
-        bucket: this.bucketName,
-        key,
-        expires_in: expiresIn,
-      }));
+      console.log(
+        JSON.stringify({
+          scope: "storage_client",
+          action: "signed_url_generated",
+          bucket: this.bucketName,
+          key,
+          expires_in: expiresIn,
+        }),
+      );
 
       return signedUrl;
     } catch (error) {
-      console.error(JSON.stringify({
-        scope: 'storage_client',
-        action: 'signed_url_error',
-        bucket: this.bucketName,
-        key,
-        error: error instanceof Error ? error.message : error,
-      }));
+      console.error(
+        JSON.stringify({
+          scope: "storage_client",
+          action: "signed_url_error",
+          bucket: this.bucketName,
+          key,
+          error: error instanceof Error ? error.message : error,
+        }),
+      );
       throw error;
     }
   }

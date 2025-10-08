@@ -1,35 +1,35 @@
-import { DeepgramClient } from '../src/lib/deepgram';
+import { DeepgramClient } from "../src/lib/deepgram";
 import {
   DeepgramApiResponse,
   DeepgramWord,
   DeepgramUtterance,
   TranscriptEnvelope,
   DeepgramSpeakerSegment,
-} from '../src/types/deepgram';
+} from "../src/types/deepgram";
 
-describe('DeepgramClient', () => {
+describe("DeepgramClient", () => {
   let client: DeepgramClient;
 
   beforeEach(() => {
-    client = new DeepgramClient('test-api-key');
+    client = new DeepgramClient("test-api-key");
   });
 
-  describe('parseResponse', () => {
-    it('should parse a valid Deepgram response into normalized envelope', () => {
+  describe("parseResponse", () => {
+    it("should parse a valid Deepgram response into normalized envelope", () => {
       const mockResponse: DeepgramApiResponse = {
         metadata: {
-          transaction_key: 'test-transaction',
-          request_id: 'test-request',
-          sha256: 'test-sha',
-          created: '2024-01-01T00:00:00Z',
+          transaction_key: "test-transaction",
+          request_id: "test-request",
+          sha256: "test-sha",
+          created: "2024-01-01T00:00:00Z",
           duration: 120.5,
           channels: 1,
-          models: ['general'],
+          models: ["general"],
           model_info: {
             general: {
-              name: 'general',
-              version: '2024.01.01',
-              arch: 'nova-2',
+              name: "general",
+              version: "2024.01.01",
+              arch: "nova-2",
             },
           },
         },
@@ -38,50 +38,50 @@ describe('DeepgramClient', () => {
             {
               alternatives: [
                 {
-                  transcript: 'Hello world this is a test',
+                  transcript: "Hello world this is a test",
                   confidence: 0.98,
                   words: [
                     {
-                      word: 'Hello',
+                      word: "Hello",
                       start: 0.0,
                       end: 0.5,
                       confidence: 0.99,
-                      punctuated_word: 'Hello',
+                      punctuated_word: "Hello",
                     },
                     {
-                      word: 'world',
+                      word: "world",
                       start: 0.5,
                       end: 1.0,
                       confidence: 0.98,
-                      punctuated_word: 'world',
+                      punctuated_word: "world",
                     },
                     {
-                      word: 'this',
+                      word: "this",
                       start: 1.2,
                       end: 1.4,
                       confidence: 0.97,
-                      punctuated_word: 'this',
+                      punctuated_word: "this",
                     },
                     {
-                      word: 'is',
+                      word: "is",
                       start: 1.4,
                       end: 1.5,
                       confidence: 0.99,
-                      punctuated_word: 'is',
+                      punctuated_word: "is",
                     },
                     {
-                      word: 'a',
+                      word: "a",
                       start: 1.5,
                       end: 1.6,
                       confidence: 0.99,
-                      punctuated_word: 'a',
+                      punctuated_word: "a",
                     },
                     {
-                      word: 'test',
+                      word: "test",
                       start: 1.6,
                       end: 2.0,
                       confidence: 0.98,
-                      punctuated_word: 'test.',
+                      punctuated_word: "test.",
                     },
                   ],
                   utterances: [
@@ -90,65 +90,65 @@ describe('DeepgramClient', () => {
                       end: 1.0,
                       confidence: 0.98,
                       channel: 0,
-                      transcript: 'Hello world',
+                      transcript: "Hello world",
                       words: [
                         {
-                          word: 'Hello',
+                          word: "Hello",
                           start: 0.0,
                           end: 0.5,
                           confidence: 0.99,
                         },
                         {
-                          word: 'world',
+                          word: "world",
                           start: 0.5,
                           end: 1.0,
                           confidence: 0.98,
                         },
                       ],
-                      id: 'utterance-1',
+                      id: "utterance-1",
                     },
                     {
                       start: 1.2,
                       end: 2.0,
                       confidence: 0.98,
                       channel: 0,
-                      transcript: 'this is a test',
+                      transcript: "this is a test",
                       words: [
                         {
-                          word: 'this',
+                          word: "this",
                           start: 1.2,
                           end: 1.4,
                           confidence: 0.97,
                         },
                         {
-                          word: 'is',
+                          word: "is",
                           start: 1.4,
                           end: 1.5,
                           confidence: 0.99,
                         },
                         {
-                          word: 'a',
+                          word: "a",
                           start: 1.5,
                           end: 1.6,
                           confidence: 0.99,
                         },
                         {
-                          word: 'test',
+                          word: "test",
                           start: 1.6,
                           end: 2.0,
                           confidence: 0.98,
                         },
                       ],
-                      id: 'utterance-2',
+                      id: "utterance-2",
                     },
                   ],
                   paragraphs: {
-                    transcript: 'Hello world this is a test.',
+                    transcript: "Hello world this is a test.",
                     paragraphs: [
                       {
                         sentences: [
                           {
-                            text: 'Hello world this is a test.',
+                            text: "Hello world this is a test.",
                             start: 0.0,
                             end: 2.0,
                           },
@@ -156,7 +156,7 @@ describe('DeepgramClient', () => {
                         start: 0.0,
                         end: 2.0,
                         num_words: 6,
-                        transcript: 'Hello world this is a test.',
+                        transcript: "Hello world this is a test.",
                       },
                     ],
                   },
@@ -167,24 +167,24 @@ describe('DeepgramClient', () => {
         },
       };
 
-      const envelope = client.parseResponse('test-episode', mockResponse);
+      const envelope = client.parseResponse("test-episode", mockResponse);
 
       // Check basic structure
-      expect(envelope.episode_id).toBe('test-episode');
-      expect(envelope.asr_provider).toBe('deepgram');
+      expect(envelope.episode_id).toBe("test-episode");
+      expect(envelope.asr_provider).toBe("deepgram");
       expect(envelope.raw).toEqual(mockResponse);
 
       // Check words
       expect(envelope.words).toHaveLength(6);
       expect(envelope.words[0]).toEqual({
-        word: 'Hello',
+        word: "Hello",
         start: 0.0,
         end: 0.5,
         confidence: 0.99,
         speaker: null,
       });
       expect(envelope.words[5]).toEqual({
-        word: 'test.',
+        word: "test.",
         start: 1.6,
         end: 2.0,
         confidence: 0.98,
@@ -196,7 +196,7 @@ describe('DeepgramClient', () => {
       expect(envelope.utterances[0]).toMatchObject({
         start: 0.0,
         end: 1.0,
-        text: 'Hello world',
+        text: "Hello world",
         speaker: null,
       });
       expect(envelope.utterances[0].words).toEqual([0, 1]); // Indices of words
@@ -206,34 +206,34 @@ describe('DeepgramClient', () => {
       expect(envelope.paragraphs[0]).toMatchObject({
         start: 0.0,
         end: 2.0,
-        text: 'Hello world this is a test.',
+        text: "Hello world this is a test.",
       });
       expect(envelope.paragraphs[0].utterances).toEqual([0, 1]); // Both utterances
 
       // Check metadata
       expect(envelope.metadata).toEqual({
         duration: 120.5,
-        language: 'en',
-        model: 'general',
-        created_at: '2024-01-01T00:00:00Z',
+        language: "en",
+        model: "general",
+        created_at: "2024-01-01T00:00:00Z",
       });
     });
 
-    it('stores only the raw S3 pointer when provided', () => {
+    it("stores only the raw S3 pointer when provided", () => {
       const mockResponse: DeepgramApiResponse = {
         metadata: {
-          transaction_key: 'transaction-key',
-          request_id: 'request-id',
-          sha256: 'sha',
-          created: '2024-01-01T00:00:00Z',
+          transaction_key: "transaction-key",
+          request_id: "request-id",
+          sha256: "sha",
+          created: "2024-01-01T00:00:00Z",
           duration: 3,
           channels: 1,
-          models: ['general'],
+          models: ["general"],
           model_info: {
             general: {
-              name: 'general',
-              version: '1.0.0',
-              arch: 'dg-decode',
+              name: "general",
+              version: "1.0.0",
+              arch: "dg-decode",
             },
           },
         },
@@ -242,15 +242,15 @@ describe('DeepgramClient', () => {
             {
               alternatives: [
                 {
-                  transcript: 'hi',
+                  transcript: "hi",
                   confidence: 0.99,
                   words: [
                     {
-                      word: 'hi',
+                      word: "hi",
                       start: 0,
                       end: 0.5,
                       confidence: 0.99,
-                      punctuated_word: 'Hi',
+                      punctuated_word: "Hi",
                     },
                   ],
                 },
@@ -260,23 +260,27 @@ describe('DeepgramClient', () => {
         },
       };
 
-      const rawKey = 'transcripts/test-episode/deepgram_raw.json';
-      const envelope = client.parseResponse('test-episode', mockResponse, rawKey);
+      const rawKey = "transcripts/test-episode/deepgram_raw.json";
+      const envelope = client.parseResponse(
+        "test-episode",
+        mockResponse,
+        rawKey,
+      );
 
       expect(envelope.raw).toBeUndefined();
       expect(envelope.raw_s3_key).toBe(rawKey);
     });
 
-    it('should handle response without utterances', () => {
+    it("should handle response without utterances", () => {
       const mockResponse: DeepgramApiResponse = {
         metadata: {
-          transaction_key: 'test',
-          request_id: 'test',
-          sha256: 'test',
-          created: '2024-01-01T00:00:00Z',
+          transaction_key: "test",
+          request_id: "test",
+          sha256: "test",
+          created: "2024-01-01T00:00:00Z",
           duration: 10,
           channels: 1,
-          models: ['general'],
+          models: ["general"],
           model_info: {},
         },
         results: {
@@ -284,11 +288,11 @@ describe('DeepgramClient', () => {
             {
               alternatives: [
                 {
-                  transcript: 'Test',
+                  transcript: "Test",
                   confidence: 0.98,
                   words: [
                     {
-                      word: 'Test',
+                      word: "Test",
                       start: 0.0,
                       end: 0.5,
                       confidence: 0.99,
@@ -301,14 +305,14 @@ describe('DeepgramClient', () => {
         },
       };
 
-      const envelope = client.parseResponse('test-episode', mockResponse);
+      const envelope = client.parseResponse("test-episode", mockResponse);
 
       expect(envelope.words).toHaveLength(1);
       expect(envelope.utterances).toHaveLength(0);
       expect(envelope.paragraphs).toHaveLength(0);
     });
 
-    it('should throw error for invalid response structure', () => {
+    it("should throw error for invalid response structure", () => {
       const invalidResponse: any = {
         metadata: {},
         results: {
@@ -317,20 +321,20 @@ describe('DeepgramClient', () => {
       };
 
       expect(() => {
-        client.parseResponse('test-episode', invalidResponse);
-      }).toThrow('Invalid Deepgram response: missing channel data');
+        client.parseResponse("test-episode", invalidResponse);
+      }).toThrow("Invalid Deepgram response: missing channel data");
     });
 
-    it('should handle empty words array', () => {
+    it("should handle empty words array", () => {
       const mockResponse: DeepgramApiResponse = {
         metadata: {
-          transaction_key: 'test',
-          request_id: 'test',
-          sha256: 'test',
-          created: '2024-01-01T00:00:00Z',
+          transaction_key: "test",
+          request_id: "test",
+          sha256: "test",
+          created: "2024-01-01T00:00:00Z",
           duration: 10,
           channels: 1,
-          models: ['general'],
+          models: ["general"],
           model_info: {},
         },
         results: {
@@ -338,7 +342,7 @@ describe('DeepgramClient', () => {
             {
               alternatives: [
                 {
-                  transcript: '',
+                  transcript: "",
                   confidence: 0,
                   words: [],
                 },
@@ -348,23 +352,23 @@ describe('DeepgramClient', () => {
         },
       };
 
-      const envelope = client.parseResponse('test-episode', mockResponse);
+      const envelope = client.parseResponse("test-episode", mockResponse);
 
       expect(envelope.words).toHaveLength(0);
       expect(envelope.utterances).toHaveLength(0);
       expect(envelope.paragraphs).toHaveLength(0);
     });
 
-    it('should preserve punctuated words when available', () => {
+    it("should preserve punctuated words when available", () => {
       const mockResponse: DeepgramApiResponse = {
         metadata: {
-          transaction_key: 'test',
-          request_id: 'test',
-          sha256: 'test',
-          created: '2024-01-01T00:00:00Z',
+          transaction_key: "test",
+          request_id: "test",
+          sha256: "test",
+          created: "2024-01-01T00:00:00Z",
           duration: 10,
           channels: 1,
-          models: ['general'],
+          models: ["general"],
           model_info: {},
         },
         results: {
@@ -372,22 +376,22 @@ describe('DeepgramClient', () => {
             {
               alternatives: [
                 {
-                  transcript: 'Hello, world!',
+                  transcript: "Hello, world!",
                   confidence: 0.98,
                   words: [
                     {
-                      word: 'Hello',
+                      word: "Hello",
                       start: 0.0,
                       end: 0.5,
                       confidence: 0.99,
-                      punctuated_word: 'Hello,',
+                      punctuated_word: "Hello,",
                     },
                     {
-                      word: 'world',
+                      word: "world",
                       start: 0.5,
                       end: 1.0,
                       confidence: 0.98,
-                      punctuated_word: 'world!',
+                      punctuated_word: "world!",
                     },
                   ],
                 },
@@ -397,22 +401,22 @@ describe('DeepgramClient', () => {
         },
       };
 
-      const envelope = client.parseResponse('test-episode', mockResponse);
+      const envelope = client.parseResponse("test-episode", mockResponse);
 
-      expect(envelope.words[0].word).toBe('Hello,');
-      expect(envelope.words[1].word).toBe('world!');
+      expect(envelope.words[0].word).toBe("Hello,");
+      expect(envelope.words[1].word).toBe("world!");
     });
 
-    it('should extract deepgram_speakers sidecar when diarization data is available', () => {
+    it("should extract deepgram_speakers sidecar when diarization data is available", () => {
       const mockResponse: DeepgramApiResponse = {
         metadata: {
-          transaction_key: 'test',
-          request_id: 'test',
-          sha256: 'test',
-          created: '2024-01-01T00:00:00Z',
+          transaction_key: "test",
+          request_id: "test",
+          sha256: "test",
+          created: "2024-01-01T00:00:00Z",
           duration: 10,
           channels: 1,
-          models: ['general'],
+          models: ["general"],
           model_info: {},
         },
         results: {
@@ -420,11 +424,11 @@ describe('DeepgramClient', () => {
             {
               alternatives: [
                 {
-                  transcript: 'Hello world this is a test',
+                  transcript: "Hello world this is a test",
                   confidence: 0.98,
                   words: [
                     {
-                      word: 'Hello',
+                      word: "Hello",
                       start: 0.0,
                       end: 0.5,
                       confidence: 0.99,
@@ -432,7 +436,7 @@ describe('DeepgramClient', () => {
                       speaker_confidence: 0.95,
                     },
                     {
-                      word: 'world',
+                      word: "world",
                       start: 0.5,
                       end: 1.0,
                       confidence: 0.98,
@@ -440,20 +444,20 @@ describe('DeepgramClient', () => {
                       speaker_confidence: 0.95,
                     },
                     {
-                      word: 'this',
+                      word: "this",
                       start: 2.0,
                       end: 2.5,
                       confidence: 0.97,
                       speaker: 1,
-                      speaker_confidence: 0.90,
+                      speaker_confidence: 0.9,
                     },
                     {
-                      word: 'is',
+                      word: "is",
                       start: 2.5,
                       end: 2.7,
                       confidence: 0.99,
                       speaker: 1,
-                      speaker_confidence: 0.90,
+                      speaker_confidence: 0.9,
                     },
                   ],
                 },
@@ -466,26 +470,26 @@ describe('DeepgramClient', () => {
               end: 1.0,
               confidence: 0.98,
               channel: 0,
-              transcript: 'Hello world',
+              transcript: "Hello world",
               words: [],
               speaker: 0,
-              id: 'utterance-1',
+              id: "utterance-1",
             },
             {
               start: 2.0,
               end: 2.7,
               confidence: 0.97,
               channel: 0,
-              transcript: 'this is',
+              transcript: "this is",
               words: [],
               speaker: 1,
-              id: 'utterance-2',
+              id: "utterance-2",
             },
           ],
         },
       };
 
-      const envelope = client.parseResponse('test-episode', mockResponse);
+      const envelope = client.parseResponse("test-episode", mockResponse);
 
       // Check that canonical speaker fields remain null
       expect(envelope.words[0].speaker).toBeNull();
@@ -500,26 +504,26 @@ describe('DeepgramClient', () => {
       expect(envelope.deepgram_speakers![0]).toEqual({
         start: 0.0,
         end: 1.0,
-        speaker: 'dg-0',
+        speaker: "dg-0",
       });
 
       expect(envelope.deepgram_speakers![1]).toEqual({
         start: 2.0,
         end: 2.7,
-        speaker: 'dg-1',
+        speaker: "dg-1",
       });
     });
 
-    it('should not include deepgram_speakers when no diarization data is available', () => {
+    it("should not include deepgram_speakers when no diarization data is available", () => {
       const mockResponse: DeepgramApiResponse = {
         metadata: {
-          transaction_key: 'test',
-          request_id: 'test',
-          sha256: 'test',
-          created: '2024-01-01T00:00:00Z',
+          transaction_key: "test",
+          request_id: "test",
+          sha256: "test",
+          created: "2024-01-01T00:00:00Z",
           duration: 10,
           channels: 1,
-          models: ['general'],
+          models: ["general"],
           model_info: {},
         },
         results: {
@@ -527,17 +531,17 @@ describe('DeepgramClient', () => {
             {
               alternatives: [
                 {
-                  transcript: 'Hello world',
+                  transcript: "Hello world",
                   confidence: 0.98,
                   words: [
                     {
-                      word: 'Hello',
+                      word: "Hello",
                       start: 0.0,
                       end: 0.5,
                       confidence: 0.99,
                     },
                     {
-                      word: 'world',
+                      word: "world",
                       start: 0.5,
                       end: 1.0,
                       confidence: 0.98,
@@ -551,7 +555,7 @@ describe('DeepgramClient', () => {
         },
       };
 
-      const envelope = client.parseResponse('test-episode', mockResponse);
+      const envelope = client.parseResponse("test-episode", mockResponse);
 
       // Check that deepgram_speakers is not included
       expect(envelope.deepgram_speakers).toBeUndefined();
@@ -563,15 +567,15 @@ describe('DeepgramClient', () => {
   });
 });
 
-describe('TranscriptEnvelope validation', () => {
-  it('should validate correct envelope structure', () => {
+describe("TranscriptEnvelope validation", () => {
+  it("should validate correct envelope structure", () => {
     const envelope: TranscriptEnvelope = {
-      episode_id: 'test-123',
-      asr_provider: 'deepgram',
+      episode_id: "test-123",
+      asr_provider: "deepgram",
       raw: {} as DeepgramApiResponse,
       words: [
         {
-          word: 'test',
+          word: "test",
           start: 0,
           end: 1,
           confidence: 0.99,
@@ -582,7 +586,7 @@ describe('TranscriptEnvelope validation', () => {
         {
           start: 0,
           end: 1,
-          text: 'test',
+          text: "test",
           words: [0],
           speaker: null,
         },
@@ -591,34 +595,34 @@ describe('TranscriptEnvelope validation', () => {
         {
           start: 0,
           end: 1,
-          text: 'test',
+          text: "test",
           utterances: [0],
         },
       ],
       metadata: {
         duration: 1,
-        language: 'en',
-        model: 'general',
-        created_at: '2024-01-01T00:00:00Z',
+        language: "en",
+        model: "general",
+        created_at: "2024-01-01T00:00:00Z",
       },
     };
 
     // Type check passes if this compiles
-    expect(envelope.episode_id).toBe('test-123');
-    expect(envelope.asr_provider).toBe('deepgram');
+    expect(envelope.episode_id).toBe("test-123");
+    expect(envelope.asr_provider).toBe("deepgram");
     expect(envelope.words[0].speaker).toBeNull();
     expect(envelope.utterances[0].speaker).toBeNull();
     expect(envelope.deepgram_speakers).toBeUndefined(); // Optional field
   });
 
-  it('should validate envelope with deepgram_speakers sidecar', () => {
+  it("should validate envelope with deepgram_speakers sidecar", () => {
     const envelope: TranscriptEnvelope = {
-      episode_id: 'test-123',
-      asr_provider: 'deepgram',
+      episode_id: "test-123",
+      asr_provider: "deepgram",
       raw: {} as DeepgramApiResponse,
       words: [
         {
-          word: 'test',
+          word: "test",
           start: 0,
           end: 1,
           confidence: 0.99,
@@ -629,7 +633,7 @@ describe('TranscriptEnvelope validation', () => {
         {
           start: 0,
           end: 1,
-          text: 'test',
+          text: "test",
           words: [0],
           speaker: null, // Canonical field remains null
         },
@@ -638,7 +642,7 @@ describe('TranscriptEnvelope validation', () => {
         {
           start: 0,
           end: 1,
-          text: 'test',
+          text: "test",
           utterances: [0],
         },
       ],
@@ -646,23 +650,23 @@ describe('TranscriptEnvelope validation', () => {
         {
           start: 0,
           end: 1,
-          speaker: 'dg-0',
+          speaker: "dg-0",
         },
       ],
       metadata: {
         duration: 1,
-        language: 'en',
-        model: 'general',
-        created_at: '2024-01-01T00:00:00Z',
+        language: "en",
+        model: "general",
+        created_at: "2024-01-01T00:00:00Z",
       },
     };
 
     // Type check passes if this compiles
-    expect(envelope.episode_id).toBe('test-123');
-    expect(envelope.asr_provider).toBe('deepgram');
+    expect(envelope.episode_id).toBe("test-123");
+    expect(envelope.asr_provider).toBe("deepgram");
     expect(envelope.words[0].speaker).toBeNull(); // Canonical remains null
     expect(envelope.utterances[0].speaker).toBeNull(); // Canonical remains null
     expect(envelope.deepgram_speakers).toBeDefined(); // Sidecar is present
-    expect(envelope.deepgram_speakers![0].speaker).toBe('dg-0'); // Sidecar format
+    expect(envelope.deepgram_speakers![0].speaker).toBe("dg-0"); // Sidecar format
   });
 });

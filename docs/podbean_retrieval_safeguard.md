@@ -6,9 +6,9 @@ This file describes improvements and guardrails to ensure we never lose or overw
 
 ## Context
 
-- Podbean's API expects **short alphanumeric IDs** (e.g. `WRQZ7196C943`).  
-- RSS `<guid>` values (UUID-like, e.g. `d891a427-17ae-438a-882b-da16ddff0212`) **are not valid** IDs for the Podbean API.  
-- Accidentally passing GUIDs into `PodbeanClient.getEpisode` caused repeated failures (`Episode not found`).  
+- Podbean's API expects **short alphanumeric IDs** (e.g. `WRQZ7196C943`).
+- RSS `<guid>` values (UUID-like, e.g. `d891a427-17ae-438a-882b-da16ddff0212`) **are not valid** IDs for the Podbean API.
+- Accidentally passing GUIDs into `PodbeanClient.getEpisode` caused repeated failures (`Episode not found`).
 
 ---
 
@@ -63,7 +63,7 @@ describe("PodbeanClient.getEpisodeByIdOrFail", () => {
 
   it("rejects RSS GUIDs", async () => {
     await expect(
-      client.getEpisodeByIdOrFail("d891a427-17ae-438a-882b-da16ddff0212")
+      client.getEpisodeByIdOrFail("d891a427-17ae-438a-882b-da16ddff0212"),
     ).rejects.toThrow(/Invalid Podbean ID/);
   });
 
@@ -71,7 +71,8 @@ describe("PodbeanClient.getEpisodeByIdOrFail", () => {
     // @ts-ignore
     global.fetch = vi.fn().mockResolvedValue({
       ok: true,
-      json: () => Promise.resolve({ id: "WRQZ7196C943", title: "Episode title" }),
+      json: () =>
+        Promise.resolve({ id: "WRQZ7196C943", title: "Episode title" }),
     });
 
     const result = await client.getEpisodeByIdOrFail("WRQZ7196C943");
@@ -89,9 +90,9 @@ Create a doc file `docs/DEVLOG/podbean_api_contract.md` with:
 ```
 # Podbean API Contract
 
-- Valid episode IDs: short alphanumeric (8–16 chars).  
-- Invalid: RSS GUIDs, form IDs, dashboard UUIDs.  
-- Always call `getEpisodeByIdOrFail()` for episode retrieval.  
+- Valid episode IDs: short alphanumeric (8–16 chars).
+- Invalid: RSS GUIDs, form IDs, dashboard UUIDs.
+- Always call `getEpisodeByIdOrFail()` for episode retrieval.
 - Never rely on RSS `<guid>` in code paths.
 ```
 
@@ -99,13 +100,13 @@ Create a doc file `docs/DEVLOG/podbean_api_contract.md` with:
 
 ## Benefits
 
-- **Code:** Centralized enforcement of correct Podbean IDs.  
-- **Tests:** Prevent regression; CI fails if someone reverts.  
-- **Docs:** Institutional memory; new contributors see the rules.  
+- **Code:** Centralized enforcement of correct Podbean IDs.
+- **Tests:** Prevent regression; CI fails if someone reverts.
+- **Docs:** Institutional memory; new contributors see the rules.
 
 ---
 
 ## Next Step
 
-- Park this file until diarization stabilizes.  
+- Park this file until diarization stabilizes.
 - Once diarization is fixed, implement these improvements to make the Podbean fix permanent.

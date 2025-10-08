@@ -11,7 +11,7 @@ export interface PyannoteSegment {
 
 export interface PyannoteDiarizationResponse {
   segments: PyannoteSegment[];
-  source?: 'pyannote' | 'deepgram_fallback';
+  source?: "pyannote" | "deepgram_fallback";
 }
 
 export interface PyannoteSpeakerIdentificationResponse {
@@ -46,7 +46,7 @@ export interface EnrichedTranscriptSegment {
   speaker: string; // Resolved speaker name (e.g., "Alex Hormozi") or diarization key
   diar_speaker: string; // Original diarization speaker key (e.g., "SPEAKER_0")
   speaker_confidence: number | null; // Confidence score for speaker identification
-  source: 'pyannote' | 'deepgram_fallback';
+  source: "pyannote" | "deepgram_fallback";
   alternatives?: Array<{
     speaker: string;
     confidence: number;
@@ -85,7 +85,7 @@ export interface ClusterSummary {
 export interface PyannoteAuditArtifacts {
   clusters: ClusterSummary[];
   totalSegments: number;
-  source: 'pyannote' | 'deepgram_fallback';
+  source: "pyannote" | "deepgram_fallback";
   nearMisses: NearMiss[];
 }
 

@@ -64,11 +64,14 @@ export interface DeepgramMetadata {
   duration: number;
   channels: number;
   models: string[];
-  model_info: Record<string, {
-    name: string;
-    version: string;
-    arch: string;
-  }>;
+  model_info: Record<
+    string,
+    {
+      name: string;
+      version: string;
+      arch: string;
+    }
+  >;
 }
 
 export interface DeepgramApiResponse {
@@ -109,7 +112,7 @@ export interface DeepgramSpeakerSegment {
 
 export interface TranscriptEnvelope {
   episode_id: string;
-  asr_provider: 'deepgram';
+  asr_provider: "deepgram";
   raw?: DeepgramApiResponse; // Present when working with in-memory responses
   raw_s3_key?: string; // Preferred pointer to the archived Deepgram payload
   words: NormalizedWord[];

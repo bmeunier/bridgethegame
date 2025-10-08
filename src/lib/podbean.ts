@@ -112,13 +112,14 @@ export class PodbeanClient {
         params,
         {
           headers: { "Content-Type": "application/x-www-form-urlencoded" },
-        }
+        },
       );
 
       this.accessToken = response.data.access_token;
       // Client credentials tokens typically don't have refresh tokens
       // Set expiry with 5 minute buffer
-      this.tokenExpiresAt = Date.now() + (response.data.expires_in - 300) * 1000;
+      this.tokenExpiresAt =
+        Date.now() + (response.data.expires_in - 300) * 1000;
 
       console.log("Client credentials token obtained successfully");
     } catch (error) {
@@ -144,13 +145,14 @@ export class PodbeanClient {
         params,
         {
           headers: { "Content-Type": "application/x-www-form-urlencoded" },
-        }
+        },
       );
 
       this.accessToken = response.data.access_token;
       this.refreshToken = response.data.refresh_token;
       // Set expiry with 5 minute buffer
-      this.tokenExpiresAt = Date.now() + (response.data.expires_in - 300) * 1000;
+      this.tokenExpiresAt =
+        Date.now() + (response.data.expires_in - 300) * 1000;
 
       console.log("Token refreshed successfully");
     } catch (error) {
@@ -188,7 +190,8 @@ export class PodbeanClient {
    */
   private isGuidFormat(id: string): boolean {
     // UUID format: 8-4-4-4-12 characters (36 total with dashes)
-    const guidPattern = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
+    const guidPattern =
+      /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
     return guidPattern.test(id);
   }
 
@@ -211,16 +214,22 @@ export class PodbeanClient {
         for (const episode of episodes.episodes) {
           // Check direct GUID field (if available)
           if (episode.guid === guid) {
-            console.log(`Found matching episode: ${episode.id} for GUID ${guid}`);
+            console.log(
+              `Found matching episode: ${episode.id} for GUID ${guid}`,
+            );
             return episode.id;
           }
 
           // Extract GUID from media_url if direct GUID field not available
           // Pattern: rss_p_episodes_captivate_fm_episode_<GUID>.mp3
           if (episode.media_url) {
-            const mediaUrlGuidMatch = episode.media_url.match(/rss_p_episodes_captivate_fm_episode_([a-f0-9-]+)\.mp3/i);
+            const mediaUrlGuidMatch = episode.media_url.match(
+              /rss_p_episodes_captivate_fm_episode_([a-f0-9-]+)\.mp3/i,
+            );
             if (mediaUrlGuidMatch && mediaUrlGuidMatch[1] === guid) {
-              console.log(`Found matching episode via media_url: ${episode.id} for GUID ${guid}`);
+              console.log(
+                `Found matching episode via media_url: ${episode.id} for GUID ${guid}`,
+              );
               return episode.id;
             }
           }
@@ -232,7 +241,9 @@ export class PodbeanClient {
 
         // Safety limit: don't search more than 1000 episodes
         if (offset >= 1000) {
-          console.warn(`Stopped searching after 1000 episodes for GUID ${guid}`);
+          console.warn(
+            `Stopped searching after 1000 episodes for GUID ${guid}`,
+          );
           break;
         }
       }
@@ -248,24 +259,33 @@ export class PodbeanClient {
   /**
    * Fetch episode list with pagination support
    */
-  private async getEpisodeList(offset: number = 0, limit: number = 100): Promise<EpisodeListResponse> {
+  private async getEpisodeList(
+    offset: number = 0,
+    limit: number = 100,
+  ): Promise<EpisodeListResponse> {
     try {
       console.log(`Fetching episode list (offset: ${offset}, limit: ${limit})`);
       const response = await this.client.get<EpisodeListResponse>(
-        `/v1/episodes?offset=${offset}&limit=${limit}`
+        `/v1/episodes?offset=${offset}&limit=${limit}`,
       );
 
       // Debug: Log the structure of the first episode to understand the response format
       if (response.data.episodes && response.data.episodes.length > 0) {
         console.log(`Fetched ${response.data.episodes.length} episodes`);
-        console.log(`First episode structure:`, JSON.stringify(response.data.episodes[0], null, 2));
+        console.log(
+          `First episode structure:`,
+          JSON.stringify(response.data.episodes[0], null, 2),
+        );
       } else {
         console.log(`No episodes found in response`);
       }
 
       return response.data;
     } catch (error) {
-      console.error(`Failed to get episode list (offset: ${offset}, limit: ${limit}):`, error);
+      console.error(
+        `Failed to get episode list (offset: ${offset}, limit: ${limit}):`,
+        error,
+      );
       throw error;
     }
   }
@@ -273,10 +293,12 @@ export class PodbeanClient {
   /**
    * Fetch episode metadata by numeric ID
    */
-  private async fetchEpisodeByNumericId(episodeId: string): Promise<PodcastEpisode> {
+  private async fetchEpisodeByNumericId(
+    episodeId: string,
+  ): Promise<PodcastEpisode> {
     try {
       const response = await this.client.get<{ episode: PodcastEpisode }>(
-        `/v1/episodes/${episodeId}`
+        `/v1/episodes/${episodeId}`,
       );
       // Reset auth failure counter on successful request
       this.authFailureCount = 0;
@@ -290,14 +312,18 @@ export class PodbeanClient {
 
           // Max 3 attempts to prevent hot-looping
           if (this.authFailureCount > 3) {
-            throw new Error("Authentication failed after 3 attempts - check your credentials");
+            throw new Error(
+              "Authentication failed after 3 attempts - check your credentials",
+            );
           }
 
           // Exponential backoff: 1s, 2s, 4s
           const backoffMs = Math.pow(2, this.authFailureCount - 1) * 1000;
-          console.log(`Got 401 (attempt ${this.authFailureCount}), waiting ${backoffMs}ms before retry`);
+          console.log(
+            `Got 401 (attempt ${this.authFailureCount}), waiting ${backoffMs}ms before retry`,
+          );
 
-          await new Promise(resolve => setTimeout(resolve, backoffMs));
+          await new Promise((resolve) => setTimeout(resolve, backoffMs));
 
           try {
             await this.refreshAccessToken();
@@ -308,7 +334,7 @@ export class PodbeanClient {
 
           // Retry the request
           const response = await this.client.get<{ episode: PodcastEpisode }>(
-            `/v1/episodes/${episodeId}`
+            `/v1/episodes/${episodeId}`,
           );
           // Reset auth failure counter on successful retry
           this.authFailureCount = 0;
@@ -334,7 +360,8 @@ export class PodbeanClient {
     }
 
     // Check if it's a GUID format
-    const guidPattern = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
+    const guidPattern =
+      /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
     if (guidPattern.test(episodeId)) {
       return true;
     }

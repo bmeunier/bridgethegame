@@ -7,7 +7,7 @@
  * - Enables debugging and confidence ensemble analysis without breaking the main pipeline
  */
 
-import axios, { AxiosInstance, AxiosError } from 'axios';
+import axios, { AxiosInstance, AxiosError } from "axios";
 import {
   DeepgramApiResponse,
   DeepgramTranscribeParams,
@@ -16,22 +16,22 @@ import {
   NormalizedUtterance,
   NormalizedParagraph,
   DeepgramSpeakerSegment,
-} from '../types/deepgram';
+} from "../types/deepgram";
 
 export class DeepgramClient {
   private client: AxiosInstance;
   private apiKey: string;
 
   constructor(apiKey?: string) {
-    this.apiKey = apiKey || process.env.DEEPGRAM_API_KEY || '';
+    this.apiKey = apiKey || process.env.DEEPGRAM_API_KEY || "";
     if (!this.apiKey) {
-      throw new Error('DEEPGRAM_API_KEY is required');
+      throw new Error("DEEPGRAM_API_KEY is required");
     }
 
     this.client = axios.create({
-      baseURL: 'https://api.deepgram.com',
+      baseURL: "https://api.deepgram.com",
       headers: {
-        'Authorization': `Token ${this.apiKey}`,
+        Authorization: `Token ${this.apiKey}`,
       },
       timeout: 600000, // 10 minutes for large files
     });
@@ -42,10 +42,10 @@ export class DeepgramClient {
    */
   async transcribeFromUrl(
     audioUrl: string,
-    params?: Partial<DeepgramTranscribeParams>
+    params?: Partial<DeepgramTranscribeParams>,
   ): Promise<DeepgramApiResponse> {
     const defaultParams: DeepgramTranscribeParams = {
-      model: 'general',
+      model: "general",
       punctuate: true,
       utterances: true,
       paragraphs: true,
@@ -53,32 +53,36 @@ export class DeepgramClient {
       timestamps: true,
       filler_words: false,
       profanity_filter: false,
-      language: 'en',
+      language: "en",
       smart_format: true,
     };
 
     const finalParams = { ...defaultParams, ...params };
 
     try {
-      console.log(JSON.stringify({
-        scope: 'deepgram_client',
-        action: 'transcribe_start',
-        audio_url: audioUrl,
-        params: finalParams,
-      }));
-
-      const response = await this.client.post<DeepgramApiResponse>(
-        '/v1/listen',
-        { url: audioUrl },
-        { params: finalParams }
+      console.log(
+        JSON.stringify({
+          scope: "deepgram_client",
+          action: "transcribe_start",
+          audio_url: audioUrl,
+          params: finalParams,
+        }),
       );
 
-      console.log(JSON.stringify({
-        scope: 'deepgram_client',
-        action: 'transcribe_success',
-        request_id: response.data.metadata.request_id,
-        duration: response.data.metadata.duration,
-      }));
+      const response = await this.client.post<DeepgramApiResponse>(
+        "/v1/listen",
+        { url: audioUrl },
+        { params: finalParams },
+      );
+
+      console.log(
+        JSON.stringify({
+          scope: "deepgram_client",
+          action: "transcribe_success",
+          request_id: response.data.metadata.request_id,
+          duration: response.data.metadata.duration,
+        }),
+      );
 
       return response.data;
     } catch (error) {
@@ -93,10 +97,10 @@ export class DeepgramClient {
   async transcribeFromBuffer(
     audioBuffer: Buffer,
     contentType: string,
-    params?: Partial<DeepgramTranscribeParams>
+    params?: Partial<DeepgramTranscribeParams>,
   ): Promise<DeepgramApiResponse> {
     const defaultParams: DeepgramTranscribeParams = {
-      model: 'general',
+      model: "general",
       punctuate: true,
       utterances: true,
       paragraphs: true,
@@ -104,38 +108,42 @@ export class DeepgramClient {
       timestamps: true,
       filler_words: false,
       profanity_filter: false,
-      language: 'en',
+      language: "en",
       smart_format: true,
     };
 
     const finalParams = { ...defaultParams, ...params };
 
     try {
-      console.log(JSON.stringify({
-        scope: 'deepgram_client',
-        action: 'transcribe_buffer_start',
-        buffer_size: audioBuffer.length,
-        content_type: contentType,
-        params: finalParams,
-      }));
+      console.log(
+        JSON.stringify({
+          scope: "deepgram_client",
+          action: "transcribe_buffer_start",
+          buffer_size: audioBuffer.length,
+          content_type: contentType,
+          params: finalParams,
+        }),
+      );
 
       const response = await this.client.post<DeepgramApiResponse>(
-        '/v1/listen',
+        "/v1/listen",
         audioBuffer,
         {
           params: finalParams,
           headers: {
-            'Content-Type': contentType,
+            "Content-Type": contentType,
           },
-        }
+        },
       );
 
-      console.log(JSON.stringify({
-        scope: 'deepgram_client',
-        action: 'transcribe_buffer_success',
-        request_id: response.data.metadata.request_id,
-        duration: response.data.metadata.duration,
-      }));
+      console.log(
+        JSON.stringify({
+          scope: "deepgram_client",
+          action: "transcribe_buffer_success",
+          request_id: response.data.metadata.request_id,
+          duration: response.data.metadata.duration,
+        }),
+      );
 
       return response.data;
     } catch (error) {
@@ -156,20 +164,21 @@ export class DeepgramClient {
   parseResponse(
     episodeId: string,
     deepgramResponse: DeepgramApiResponse,
-    rawKey?: string
+    rawKey?: string,
   ): TranscriptEnvelope {
     const words: NormalizedWord[] = [];
     const utterances: NormalizedUtterance[] = [];
     const paragraphs: NormalizedParagraph[] = [];
     const wordIndexByTime = new Map<string, number>();
 
-    const buildTimeKey = (start: number, end: number) => `${Math.round(start * 1000)}:${Math.round(end * 1000)}`;
+    const buildTimeKey = (start: number, end: number) =>
+      `${Math.round(start * 1000)}:${Math.round(end * 1000)}`;
     const TIME_TOLERANCE = 0.02; // 20ms tolerance for floating point drift
 
     // Extract from the first channel (mono audio)
     const channel = deepgramResponse.results.channels[0];
     if (!channel || !channel.alternatives[0]) {
-      throw new Error('Invalid Deepgram response: missing channel data');
+      throw new Error("Invalid Deepgram response: missing channel data");
     }
 
     const alternative = channel.alternatives[0];
@@ -196,7 +205,7 @@ export class DeepgramClient {
         const wordIndices: number[] = [];
 
         // Find word indices for this utterance
-        utterance.words.forEach(uWord => {
+        utterance.words.forEach((uWord) => {
           const exactKey = buildTimeKey(uWord.start, uWord.end);
           let wordIndex = wordIndexByTime.get(exactKey);
 
@@ -217,7 +226,7 @@ export class DeepgramClient {
             }
           }
 
-          if (typeof wordIndex === 'number') {
+          if (typeof wordIndex === "number") {
             wordIndices.push(wordIndex);
             if (wordIndex + 1 > searchCursor) {
               searchCursor = wordIndex + 1;
@@ -241,7 +250,10 @@ export class DeepgramClient {
         // Find utterances that belong to this paragraph
         const paragraphUtterances: number[] = [];
         utterances.forEach((utterance, index) => {
-          if (utterance.start >= paragraph.start && utterance.end <= paragraph.end) {
+          if (
+            utterance.start >= paragraph.start &&
+            utterance.end <= paragraph.end
+          ) {
             paragraphUtterances.push(index);
           }
         });
@@ -274,13 +286,13 @@ export class DeepgramClient {
     // Build the envelope
     const envelope: TranscriptEnvelope = {
       episode_id: episodeId,
-      asr_provider: 'deepgram',
+      asr_provider: "deepgram",
       words,
       utterances,
       paragraphs,
       metadata: {
         duration: deepgramResponse.metadata.duration,
-        language: 'en', // We specified this in params
+        language: "en", // We specified this in params
         model: deepgramResponse.metadata.models[0],
         created_at: deepgramResponse.metadata.created,
       },
@@ -307,8 +319,8 @@ export class DeepgramClient {
     if (axios.isAxiosError(error)) {
       const axiosError = error as AxiosError;
       const errorLog = {
-        scope: 'deepgram_client',
-        action: 'error',
+        scope: "deepgram_client",
+        action: "error",
         status_code: axiosError.response?.status,
         error_message: axiosError.message,
         error_data: axiosError.response?.data,
@@ -318,21 +330,25 @@ export class DeepgramClient {
 
       // Throw more specific errors
       if (axiosError.response?.status === 401) {
-        throw new Error('Deepgram authentication failed. Check API key.');
+        throw new Error("Deepgram authentication failed. Check API key.");
       }
       if (axiosError.response?.status === 429) {
-        throw new Error('Deepgram rate limit exceeded. Retry later.');
+        throw new Error("Deepgram rate limit exceeded. Retry later.");
       }
       if (axiosError.response?.status === 400) {
-        throw new Error(`Deepgram bad request: ${JSON.stringify(axiosError.response.data)}`);
+        throw new Error(
+          `Deepgram bad request: ${JSON.stringify(axiosError.response.data)}`,
+        );
       }
     } else {
-      console.error(JSON.stringify({
-        scope: 'deepgram_client',
-        action: 'error',
-        error_type: 'unknown',
-        error: error,
-      }));
+      console.error(
+        JSON.stringify({
+          scope: "deepgram_client",
+          action: "error",
+          error_type: "unknown",
+          error: error,
+        }),
+      );
     }
   }
 }
@@ -349,10 +365,12 @@ export function getDeepgramClient(): DeepgramClient {
 
 // Export for backward compatibility
 export const deepgramClient = {
-  transcribeFromUrl: (...args: Parameters<DeepgramClient['transcribeFromUrl']>) =>
-    getDeepgramClient().transcribeFromUrl(...args),
-  transcribeFromBuffer: (...args: Parameters<DeepgramClient['transcribeFromBuffer']>) =>
-    getDeepgramClient().transcribeFromBuffer(...args),
-  parseResponse: (...args: Parameters<DeepgramClient['parseResponse']>) =>
+  transcribeFromUrl: (
+    ...args: Parameters<DeepgramClient["transcribeFromUrl"]>
+  ) => getDeepgramClient().transcribeFromUrl(...args),
+  transcribeFromBuffer: (
+    ...args: Parameters<DeepgramClient["transcribeFromBuffer"]>
+  ) => getDeepgramClient().transcribeFromBuffer(...args),
+  parseResponse: (...args: Parameters<DeepgramClient["parseResponse"]>) =>
     getDeepgramClient().parseResponse(...args),
 };

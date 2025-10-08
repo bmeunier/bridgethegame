@@ -41,10 +41,10 @@ Single source of truth for paths:
 // src/lib/keys.ts
 export const keys = {
   diarizationRaw: (id: string) => `diarization/${id}/pyannote_raw.json`,
-  speakerMap:     (id: string) => `diarization/${id}/speaker_map.json`,
-  nearMisses:     (id: string) => `diarization/${id}/near_misses.json`,
-  enriched:       (id: string) => `diarization/${id}/enriched.json`,
-  transcript:     (id: string) => `transcripts/${id}/deepgram.json`,
+  speakerMap: (id: string) => `diarization/${id}/speaker_map.json`,
+  nearMisses: (id: string) => `diarization/${id}/near_misses.json`,
+  enriched: (id: string) => `diarization/${id}/enriched.json`,
+  transcript: (id: string) => `transcripts/${id}/deepgram.json`,
 };
 ```
 
@@ -65,7 +65,11 @@ export async function mustLoadJson<T>(key: string, what: string): Promise<T> {
 }
 
 export async function tryLoadJson<T>(key: string): Promise<T | null> {
-  try { return await loadJson<T>(key); } catch { return null; }
+  try {
+    return await loadJson<T>(key);
+  } catch {
+    return null;
+  }
 }
 ```
 
@@ -102,7 +106,7 @@ const MAX_SIZE = 100 * 1024; // keep very small
 export async function safeStepOutput<T>(
   key: string,
   payload: T,
-  metadata: Record<string, unknown> = {}
+  metadata: Record<string, unknown> = {},
 ) {
   const raw = JSON.stringify(payload);
   if (Buffer.byteLength(raw) > MAX_SIZE) {
@@ -115,7 +119,7 @@ export async function safeStepOutput<T>(
 }
 ```
 
-*Rule of thumb:* **Always** write big data to storage. **Never** return arrays or large objects in step results.
+_Rule of thumb:_ **Always** write big data to storage. **Never** return arrays or large objects in step results.
 
 ---
 
@@ -137,7 +141,7 @@ const diarizationKey = keys.diarizationRaw(episode_id);
 await step.run("pyannote-diarize", async () => {
   const raw = await pyannote.diarize(audio_url, process.env.PYANNOTE_API_KEY!);
   return safeStepOutput(diarizationKey, raw, {
-    segments: raw?.segments?.length ?? 0
+    segments: raw?.segments?.length ?? 0,
   });
 });
 ```
@@ -150,7 +154,7 @@ await step.run("pyannote-diarize", async () => {
 
 - **Rehydrate:** `raw = await mustLoadJson(diarizationKey, "diarization")`
 - **Cluster once, identify once per cluster** using a representative clip.
-- **Persist:** 
+- **Persist:**
   - `keys.speakerMap(id)` = `{ diarKey: SPEAKER_0 → "Alex Hormozi", confidence, refId }`
   - `keys.nearMisses(id)` = `[ { clusterKey, threshold, confidence, refId } ]`
 - **Return:** `{ episode_id, speaker_map_key, near_misses_key, stats }`
@@ -167,7 +171,10 @@ return {
   episode_id,
   speaker_map_key: keys.speakerMap(episode_id),
   near_misses_key: keys.nearMisses(episode_id),
-  stats: { identified: Object.keys(map).length, near_misses: nearMisses.length }
+  stats: {
+    identified: Object.keys(map).length,
+    near_misses: nearMisses.length,
+  },
 };
 ```
 
@@ -177,35 +184,40 @@ return {
 
 ### Step 3 — Enrich Transcript (IoU merge, stateless, fallback-aware)
 
-- **Rehydrate:**  
-  - `transcript = await mustLoadJson(keys.transcript(id), "transcript")`  
-  - Try `raw` diarization; if missing, **fallback** to Deepgram speakers sidecar.  
+- **Rehydrate:**
+  - `transcript = await mustLoadJson(keys.transcript(id), "transcript")`
+  - Try `raw` diarization; if missing, **fallback** to Deepgram speakers sidecar.
   - Try `speakerMap`; if missing, use empty `{}` (generic labels).
 - **Merge by IoU:** For each utterance, find best overlapping diarized segment; map to labeled speaker if available.
-- **Persist:** `keys.enriched(id)`  
+- **Persist:** `keys.enriched(id)`
 - **Return:** `{ episode_id, enriched_key, stats }`
 
 ```ts
-const transcript = await mustLoadJson<Transcript>(keys.transcript(episode_id), "transcript");
+const transcript = await mustLoadJson<Transcript>(
+  keys.transcript(episode_id),
+  "transcript",
+);
 const diar = await tryLoadJson<Diarization>(keys.diarizationRaw(episode_id));
-const spkMap = await tryLoadJson<SpeakerMap>(keys.speakerMap(episode_id)) ?? {};
+const spkMap =
+  (await tryLoadJson<SpeakerMap>(keys.speakerMap(episode_id))) ?? {};
 
 const enriched = diar
   ? enrichWithPyannote(transcript.utterances, diar, spkMap) // IoU logic
-  : enrichWithDeepgramFallback(transcript, /* deepgram sidecar */);
+  : enrichWithDeepgramFallback(transcript /* deepgram sidecar */);
 
 await saveJson(keys.enriched(episode_id), enriched);
 
 return {
   episode_id,
   enriched_key: keys.enriched(episode_id),
-  stats: { segments: enriched.length, identified: countLabeled(enriched) }
+  stats: { segments: enriched.length, identified: countLabeled(enriched) },
 };
 ```
 
-**Important:**  
-- **No multi-label words** for now. Keep it simple; pick the best IoU match.  
-- Add `speaker_confidence` when a labeled match exists.  
+**Important:**
+
+- **No multi-label words** for now. Keep it simple; pick the best IoU match.
+- Add `speaker_confidence` when a labeled match exists.
 - Add `source: "pyannote_precision2"` or `"deepgram_fallback"`.
 
 ---
@@ -213,13 +225,19 @@ return {
 ## Output Schemas (lean)
 
 **Speaker Map (saved only):**
+
 ```json
 {
-  "SPEAKER_0": { "label": "Alex Hormozi", "confidence": 0.92, "referenceId": "ref_hormozi" }
+  "SPEAKER_0": {
+    "label": "Alex Hormozi",
+    "confidence": 0.92,
+    "referenceId": "ref_hormozi"
+  }
 }
 ```
 
 **Enriched Segment (saved only):**
+
 ```json
 {
   "start": 12.34,
@@ -233,6 +251,7 @@ return {
 ```
 
 **Step Results (returned to Inngest):**
+
 ```json
 {
   "episode_id": "WRQZ7196C943",
@@ -247,7 +266,10 @@ return {
 
 - **Before any `Object.entries(x)` / `x.map(...)`:**
   ```ts
-  if (!x) { console.warn("Missing x, skipping."); return []; }
+  if (!x) {
+    console.warn("Missing x, skipping.");
+    return [];
+  }
   ```
 - **Near-miss logging** when confidence < threshold (but close).
 - **Try/catch** each step; persist error JSON to `diarization/<id>/errors/<ts>.json`; continue with fallback where possible.
@@ -256,28 +278,28 @@ return {
 
 ## Idempotency & Retries
 
-- Deterministic keys → re-runs overwrite same object; safe.  
-- **Stateless** steps → every retry starts by reloading; safe.  
+- Deterministic keys → re-runs overwrite same object; safe.
+- **Stateless** steps → every retry starts by reloading; safe.
 - Identification can skip work if `speaker_map.json` already exists (optional micro-opt).
 
 ---
 
 ## Testing & Proof
 
-1. **Unit**  
-   - IoU merge with fixtures.  
-   - Identification chooses best match, logs near-misses.  
+1. **Unit**
+   - IoU merge with fixtures.
+   - Identification chooses best match, logs near-misses.
    - Guard functions throw on bad inputs.
 
-2. **Retry Simulation (critical)**  
-   - In a test, force a throw **after** diarization is saved but **before** identification finishes.  
+2. **Retry Simulation (critical)**
+   - In a test, force a throw **after** diarization is saved but **before** identification finishes.
    - Let Inngest retry the step; verify it rehydrates from storage and completes.
 
-3. **Large Payload Torture**  
-   - 6k segments diarization fixture → step results remain < 1 KB.  
+3. **Large Payload Torture**
+   - 6k segments diarization fixture → step results remain < 1 KB.
    - Ensure enriched is only ever saved/loaded via storage, not returned.
 
-4. **End-to-End Harness**  
+4. **End-to-End Harness**
    - `scripts/test_pipeline_end_to_end.ts` triggers a real episode and polls Inngest Runs API until **Completed** or fails loudly.
 
 ---
@@ -293,11 +315,12 @@ log.info({
   action: "reload_from_storage",
   episode_id,
   diarization_key: keys.diarizationRaw(episode_id),
-  segments: raw?.segments?.length ?? 0
+  segments: raw?.segments?.length ?? 0,
 });
 ```
 
 Metrics to eyeball:
+
 - Percent runs that hit fallback
 - Near-miss count per episode
 - Average segments labeled
@@ -322,28 +345,30 @@ Or stricter:
 
 ```ts
 const map = ensureObject<SpeakerMap>(speakerMap, "speakerMap");
-for (const [clusterKey, info] of Object.entries(map)) { /* ... */ }
+for (const [clusterKey, info] of Object.entries(map)) {
+  /* ... */
+}
 ```
 
 ---
 
 ## Rollout Plan
 
-1. Land **keys.ts**, **storage_safe.ts**, **guards.ts**, **safe_step_output.ts**.  
-2. Refactor **diarize_episode.ts** to stateless pattern (3 steps above).  
-3. Add unit tests + retry simulation test.  
-4. Add the **end-to-end harness** and run it; require “Completed” in Inngest UI.  
-5. Tighten logs; document the flow.  
+1. Land **keys.ts**, **storage_safe.ts**, **guards.ts**, **safe_step_output.ts**.
+2. Refactor **diarize_episode.ts** to stateless pattern (3 steps above).
+3. Add unit tests + retry simulation test.
+4. Add the **end-to-end harness** and run it; require “Completed” in Inngest UI.
+5. Tighten logs; document the flow.
 6. Celebrate with the most obnoxious Starbucks order you can pronounce.
 
 ---
 
 ## Acceptance Criteria (no wiggle room)
 
-- Inngest Runs UI shows **Completed** for a full episode end-to-end at least 3 times in a row.  
-- No step returns arrays or large JSON; all data > 100 KB lives in storage.  
-- Retrying any single step (kill it mid-run) **still** completes successfully thanks to rehydration.  
-- No `Object of null` / `Cannot read property 'segments' of undefined` anywhere.  
+- Inngest Runs UI shows **Completed** for a full episode end-to-end at least 3 times in a row.
+- No step returns arrays or large JSON; all data > 100 KB lives in storage.
+- Retrying any single step (kill it mid-run) **still** completes successfully thanks to rehydration.
+- No `Object of null` / `Cannot read property 'segments' of undefined` anywhere.
 - Fallback path produces enriched JSON with `source: "deepgram_fallback"` when Pyannote is unavailable.
 
 ---

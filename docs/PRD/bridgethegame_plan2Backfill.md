@@ -1,14 +1,17 @@
 # Plan 2: Backfill Triggers and Minimal Ingestion Loop for bridgethegame
 
 ## Purpose
+
 Enable podcast owners (or us, during early builds) to **select and re-ingest any number of past episodes** into the pipeline. This is critical for onboarding entire back catalogs, validating idempotency, and providing a "migration as a service" path.
 
 ---
 
 ## Intent & Approach
+
 **Start small: Just trigger Inngest and fetch from Podbean API.**
 
 We're taking an incremental approach:
+
 1. **This step**: Build a simple trigger that:
    - Sends an event to Inngest with an episode ID
    - Inngest function fetches episode metadata from Podbean API
@@ -24,36 +27,40 @@ We're taking an incremental approach:
 **Success criteria**: An Inngest workflow appears in the dashboard showing it received the event and successfully called Podbean API.
 
 **Considerations for this and future iterations:**
-  - Secrets and config via env vars
-  - Error handling basics
-  - Event schema stability
-  - Idempotency placeholder
-  - Observability/logging beyond just success
-  - Test with at least two episodes
-  - Podbean OAuth token refresh handling
-  - Episode ID format validation
-  - Retry strategy for API failures
+
+- Secrets and config via env vars
+- Error handling basics
+- Event schema stability
+- Idempotency placeholder
+- Observability/logging beyond just success
+- Test with at least two episodes
+- Podbean OAuth token refresh handling
+- Episode ID format validation
+- Retry strategy for API failures
 
 ---
 
 ## Context
+
 - Real-time ingestion only handles new episodes moving forward.
 - Many podcasts have **100+ historical episodes** that contain valuable knowledge.
 - Manual backfill ensures episodes can be processed:
   - in bulk (all episodes at once),
   - selectively (a handful),
-  - or repeatedly (forced re-ingest when transcripts/diarization improve).  
+  - or repeatedly (forced re-ingest when transcripts/diarization improve).
 
 ---
 
 ## Triggers & Entry Points
-1. **CLI Utility**: developer-facing tool for testing, backfilling, or debugging.  
-2. **Bridge Console Web UI**: list episodes (fetched via Podbean API), allow checkboxes and “Go” action.  
+
+1. **CLI Utility**: developer-facing tool for testing, backfilling, or debugging.
+2. **Bridge Console Web UI**: list episodes (fetched via Podbean API), allow checkboxes and “Go” action.
 3. **API Endpoint**: accepts JSON with episode IDs + options, useful for automation or third-party integrations.
 
 ---
 
 ## Event Contract
+
 All backfill paths converge into a single Inngest event:
 
 ```json
@@ -72,26 +79,30 @@ All backfill paths converge into a single Inngest event:
 ---
 
 ## Processing Strategy
-- **Batching**: break into chunks (10–20 episodes per run) to respect Podbean/Deepgram limits.  
+
+- **Batching**: break into chunks (10–20 episodes per run) to respect Podbean/Deepgram limits.
 - **Rate limiting**: introduce small delays (e.g. `step.sleep`) or batch throttling to avoid Podbean API rate limits during retries or backfill.
-- **Idempotency**:  
-  - Check Weaviate for `episode_id` marker before starting.  
-  - Skip if already present unless `force=true`.  
-- **Resumability**: keep cursor state to recover mid-batch crashes.  
+- **Idempotency**:
+  - Check Weaviate for `episode_id` marker before starting.
+  - Skip if already present unless `force=true`.
+- **Resumability**: keep cursor state to recover mid-batch crashes.
 
 ---
 
 ## User Feedback
-- **MVP**: logs or database table tracking episode_id, status, timestamp.  
-- **Extended**: Bridge Console displays a progress bar per job, with states: *Pending, Processing, Indexed, Failed*.  
+
+- **MVP**: logs or database table tracking episode_id, status, timestamp.
+- **Extended**: Bridge Console displays a progress bar per job, with states: _Pending, Processing, Indexed, Failed_.
 
 ---
 
 ## Service Potential
-Manual backfill is not just infrastructure — it’s a **business feature**:  
-- One-time onboarding of entire catalogs.  
-- Differentiates BridgeTheGame from purely real-time competitors.  
-- Future monetization path: “Pay once to ingest your archive, then stay subscribed for realtime.”  
+
+Manual backfill is not just infrastructure — it’s a **business feature**:
+
+- One-time onboarding of entire catalogs.
+- Differentiates BridgeTheGame from purely real-time competitors.
+- Future monetization path: “Pay once to ingest your archive, then stay subscribed for realtime.”
 
 ---
 
@@ -124,6 +135,7 @@ Manual backfill is not just infrastructure — it’s a **business feature**:
    - Test with multiple episodes (e.g. one short and one long) to validate consistency
 
 ## Next Steps (Future Iterations)
+
 - Add the next API integration (Deepgram or Pyannote)
 - Build incrementally, one step at a time
-- Eventually add batching, error handling, and UI triggers  
+- Eventually add batching, error handling, and UI triggers
